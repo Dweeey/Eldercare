@@ -3,6 +3,7 @@ import 'Privacy_page.dart';
 import 'Login.dart';
 import 'Terms_page.dart';
 import 'database_helper.dart';
+import 'Home.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -287,6 +288,32 @@ class _SignUpPageState extends State<SignUpPage> {
                           "Sign Up",
                           style: TextStyle(fontSize: 16, color: Colors.white),
                         ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HomePage(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 55),
+                    side: const BorderSide(color: Colors.blue),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    "Continue as Guest",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Center(
