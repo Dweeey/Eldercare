@@ -5,8 +5,8 @@ import 'database_helper.dart';
 import 'user_provider.dart';
 import 'notification_page.dart';
 import 'account_page.dart';
-import 'audio_call_page.dart';
 import 'location_page.dart';
+import 'history_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -73,11 +73,15 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
+
+    // ORDER MATTERS: these are the pages hooked to each bottom-nav icon.
+    // If you want to change which screen an icon opens, update this list
+    // AND the icons in _buildBottomNavBar() so they stay in sync.
     final pages = [
-      _buildHomePage(userProvider),
-      const NotificationsPage(),
-      const LocationPage(),
-      const AccountPage(),
+      _buildHomePage(userProvider), // index 0 -> Home icon
+      const NotificationsPage(),    // index 1 -> Alerts/messages icon
+      const HistoryPage(),          // index 2 -> History (calendar) icon
+      const AccountPage(),          // index 3 -> User/account icon
     ];
 
     return Scaffold(

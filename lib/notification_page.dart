@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'audio_call_page.dart';
 import 'location_page.dart';
+import 'message_page.dart';
+import 'alert_details_page.dart';
 
 enum AlertSeverity { all, warning, critical }
 
@@ -105,6 +107,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      // Floating button to open the Messages screen from Alerts.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MessagePage()),
+          );
+        },
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.chat_bubble_outline),
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -321,7 +334,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const LocationPage()),
+                        MaterialPageRoute(
+                          builder: (_) => AlertDetailsPage(
+                            title: alert.title,
+                            subtitle: alert.subtitle,
+                            details: alert.details,
+                            isCritical: isCritical,
+                          ),
+                        ),
                       );
                     },
                     style: OutlinedButton.styleFrom(
@@ -330,7 +350,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    child: Text(isCritical ? 'Location' : 'View Details'),
+                    child: const Text('View Details'),
                   ),
                 ),
               ],

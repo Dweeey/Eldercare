@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'user_provider.dart';
 import 'Login.dart';
 import 'emergency_contacts_page.dart';
+import 'theme_provider.dart';
+import 'medical_history_page.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({Key? key}) : super(key: key);
@@ -15,6 +17,7 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -26,7 +29,7 @@ class _AccountPageState extends State<AccountPage> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Profile Header
+            // === Profile Header ===
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -81,7 +84,7 @@ class _AccountPageState extends State<AccountPage> {
 
             const SizedBox(height: 24),
 
-            // Settings Options
+            // === Settings Sections ===
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
@@ -105,9 +108,14 @@ class _AccountPageState extends State<AccountPage> {
                       _buildSettingsItem(
                         icon: Icons.medical_services,
                         title: 'Medical History',
-                        subtitle: 'View your health records',
+                        subtitle: 'View and export your health records',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MedicalHistoryPage(),
+                            ),
+                          );
                         },
                       ),
                       _buildSettingsItem(
@@ -145,9 +153,10 @@ class _AccountPageState extends State<AccountPage> {
                       _buildSettingsItem(
                         icon: Icons.dark_mode,
                         title: 'Dark Mode',
-                        subtitle: 'Adjust app appearance',
+                        // Shows current mode in subtitle.
+                        subtitle: themeProvider.isDarkMode ? 'Dark' : 'Light',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          _showThemeDialog(context, themeProvider);
                         },
                       ),
                     ],
@@ -187,7 +196,7 @@ class _AccountPageState extends State<AccountPage> {
 
                   const SizedBox(height: 24),
 
-                  // Logout Button
+                  // === Logout Button ===
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -277,6 +286,8 @@ class _AccountPageState extends State<AccountPage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
+            // If you want to change the icon for this row, change it here:
+            //   icon: Icons.xxx
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -390,6 +401,57 @@ class _AccountPageState extends State<AccountPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showThemeDialog(BuildContext context, ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isDark = themeProvider.isDarkMode;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Choose Theme'),
+          content: StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<bool>(
+                    title: const Text('Light'),
+                    value: false,
+                    groupValue: isDark,
+                    onChanged: (value) {
+                      setStateDialog(() => isDark = value ?? false);
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    title: const Text('Dark'),
+                    value: true,
+                    groupValue: isDark,
+                    onChanged: (value) {
+                      setStateDialog(() => isDark = value ?? true);
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                themeProvider.setTheme(isDark);
+                Navigator.pop(context);
+              },
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
