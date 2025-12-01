@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'database_helper.dart';
-import 'user_provider.dart';
-import 'package:intl/intl.dart';
+import 'audio_call_page.dart';
+import 'location_page.dart';
+
+enum AlertSeverity { all, warning, critical }
+
+class AlertItem {
+  final String title;
+  final String subtitle;
+  final String details;
+  final String time;
+  final AlertSeverity severity;
+
+  const AlertItem({
+    required this.title,
+    required this.subtitle,
+    required this.details,
+    required this.time,
+    required this.severity,
+  });
+}
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -12,289 +28,316 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  List<Map<String, dynamic>> _notifications = [];
-  bool _isLoading = true;
+  int _selectedTab = 0; // 0 = All, 1 = Warning, 2 = Critical
 
-  @override
-  void initState() {
-    super.initState();
-    _loadNotifications();
-  }
+  final List<AlertItem> _alerts = const [
+    AlertItem(
+      title: 'Fall Detected',
+      subtitle: 'Living Room · Mang Juan',
+      details: 'No response yet. Please check immediately.',
+      time: '2:34 PM',
+      severity: AlertSeverity.critical,
+    ),
+    AlertItem(
+      title: 'Heart Rate Critical',
+      subtitle: '145 bpm · Above threshold',
+      details: 'Normal: 60–100 bpm · Current: 145 bpm (+45%).',
+      time: '2:00 PM',
+      severity: AlertSeverity.critical,
+    ),
+    AlertItem(
+      title: 'Blood Pressure Elevated',
+      subtitle: '145/95 mmHg · Increasing',
+      details: 'Normal: <130/80 mmHg · Trend: increasing.',
+      time: '2:34 PM',
+      severity: AlertSeverity.warning,
+    ),
+    AlertItem(
+      title: 'Low Oxygen Saturation',
+      subtitle: 'SpO₂ at 92% · Below 95%',
+      details: 'Action: Monitor closely, consider contacting a doctor.',
+      time: '2:00 PM',
+      severity: AlertSeverity.warning,
+    ),
+    AlertItem(
+      title: 'Daily Health Check Complete',
+      subtitle: 'All vitals within normal range',
+      details: 'Heart Rate: 72 bpm · BP: 118/76 mmHg · SpO₂: 98%.',
+      time: '1:00 AM',
+      severity: AlertSeverity.warning,
+    ),
+    AlertItem(
+      title: 'Device Connected',
+      subtitle: 'Smartwatch successfully reconnected',
+      details: 'Connection restored between watch and phone.',
+      time: '12:34 PM',
+      severity: AlertSeverity.warning,
+    ),
+    AlertItem(
+      title: 'Battery Fully Charged',
+      subtitle: 'Smartwatch battery at 100%',
+      details: 'Watch is ready for the day.',
+      time: '10:34 PM',
+      severity: AlertSeverity.warning,
+    ),
+    AlertItem(
+      title: 'Low Battery Warning',
+      subtitle: 'Battery at 15%',
+      details: 'Please remind Mang Juan to charge the device.',
+      time: '2:00 PM',
+      severity: AlertSeverity.warning,
+    ),
+  ];
 
-  Future<void> _loadNotifications() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (userProvider.userId == null) return;
-
-    final db = DatabaseHelper.instance;
-    final notifications = await db.getNotifications(userProvider.userId!);
-
-    setState(() {
-      _notifications = notifications;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _markAsRead(int notificationId) async {
-    final db = DatabaseHelper.instance;
-    await db.markNotificationAsRead(notificationId);
-    _loadNotifications();
-  }
-
-  Future<void> _generateSampleNotifications() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (userProvider.userId == null) return;
-
-    final db = DatabaseHelper.instance;
-    final now = DateTime.now();
-
-    final sampleNotifications = [
-      {
-        'user_id': userProvider.userId!,
-        'title': 'Heart Rate Alert',
-        'message': 'Your heart rate has been elevated for the past hour. Consider taking a rest.',
-        'type': 'health',
-        'created_at': now.subtract(const Duration(hours: 2)).toIso8601String(),
-      },
-      {
-        'user_id': userProvider.userId!,
-        'title': 'Medication Reminder',
-        'message': 'Time to take your evening medication.',
-        'type': 'reminder',
-        'created_at': now.subtract(const Duration(hours: 5)).toIso8601String(),
-      },
-      {
-        'user_id': userProvider.userId!,
-        'title': 'Blood Pressure Check',
-        'message': 'Your blood pressure reading was normal today. Keep up the good work!',
-        'type': 'health',
-        'created_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-      },
-      {
-        'user_id': userProvider.userId!,
-        'title': 'Emergency Contact Update',
-        'message': 'Please review and update your emergency contacts.',
-        'type': 'system',
-        'created_at': now.subtract(const Duration(days: 2)).toIso8601String(),
-      },
-    ];
-
-    for (var notification in sampleNotifications) {
-      await db.insertNotification(notification);
+  List<AlertItem> get _filteredAlerts {
+    if (_selectedTab == 1) {
+      return _alerts.where((a) => a.severity == AlertSeverity.warning).toList();
     }
-
-    _loadNotifications();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sample notifications generated!')),
-      );
+    if (_selectedTab == 2) {
+      return _alerts.where((a) => a.severity == AlertSeverity.critical).toList();
     }
+    return _alerts;
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        backgroundColor: Colors.blue,
-        elevation: 0,
-        actions: [
-          if (_notifications.isEmpty)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: _generateSampleNotifications,
-              tooltip: 'Add sample notifications',
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header row: title + search + clear all
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Alerts',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Search coming soon (UI only).')),
+                      );
+                    },
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Clear all is a demo action only.')),
+                      );
+                    },
+                    child: const Text('Clear All'),
+                  ),
+                ],
+              ),
             ),
-        ],
+
+            // Tabs: All / Warning / Critical
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  _buildTabChip(label: 'All', index: 0),
+                  const SizedBox(width: 8),
+                  _buildTabChip(label: 'Warning', index: 1),
+                  const SizedBox(width: 8),
+                  _buildTabChip(label: 'Critical', index: 2),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            // Alerts list
+            Expanded(
+              child: _filteredAlerts.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No alerts',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: _filteredAlerts.length,
+                      itemBuilder: (context, index) {
+                        final alert = _filteredAlerts[index];
+                        final isCritical = alert.severity == AlertSeverity.critical;
+
+                        return _buildAlertCard(context, alert, isCritical);
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-              ? Center(
+    );
+  }
+
+  Widget _buildTabChip({required String label, required int index}) {
+    final isSelected = _selectedTab == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedTab = index);
+        },
+        child: Container(
+          height: 36,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.blue : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey.shade800,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertCard(BuildContext context, AlertItem alert, bool isCritical) {
+    final theme = Theme.of(context);
+
+    Color accentColor;
+    IconData icon;
+    if (isCritical) {
+      accentColor = Colors.red;
+      icon = Icons.warning_amber_rounded;
+    } else {
+      accentColor = Colors.blue;
+      icon = Icons.health_and_safety;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: accentColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.notifications_none,
-                        size: 80,
-                        color: Colors.grey.shade300,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              alert.title,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            alert.time,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
                       Text(
-                        'No notifications yet',
-                        style: TextStyle(
-                          fontSize: 18,
+                        alert.subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        alert.details,
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'You\'ll see notifications here',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: _generateSampleNotifications,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Generate Sample Data'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         ),
                       ),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = _notifications[index];
-                      final isRead = notification['is_read'] == 1;
-                      final createdAt = DateTime.parse(notification['created_at']);
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: isRead ? 0 : 2,
-                        color: isRead ? Colors.grey.shade50 : Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: isRead ? Colors.grey.shade200 : Colors.blue.shade100,
-                            width: 1,
-                          ),
-                        ),
-                        child: InkWell(
-                          onTap: () {
-                            if (!isRead) {
-                              _markAsRead(notification['id']);
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: _getNotificationColor(notification['type']).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    _getNotificationIcon(notification['type']),
-                                    color: _getNotificationColor(notification['type']),
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              notification['title'],
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                          if (!isRead)
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.blue,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        notification['message'],
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey.shade700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _formatDateTime(createdAt),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AudioCallPage()),
                       );
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: const Text('Call Now'),
                   ),
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LocationPage()),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: Text(isCritical ? 'Location' : 'View Details'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
-  }
-
-  IconData _getNotificationIcon(String type) {
-    switch (type) {
-      case 'health':
-        return Icons.favorite;
-      case 'reminder':
-        return Icons.alarm;
-      case 'emergency':
-        return Icons.warning;
-      case 'system':
-        return Icons.info;
-      default:
-        return Icons.notifications;
-    }
-  }
-
-  Color _getNotificationColor(String type) {
-    switch (type) {
-      case 'health':
-        return Colors.red;
-      case 'reminder':
-        return Colors.orange;
-      case 'emergency':
-        return Colors.deepOrange;
-      case 'system':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return DateFormat('MMM d, yyyy').format(dateTime);
-    }
   }
 }

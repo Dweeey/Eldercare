@@ -5,6 +5,8 @@ import 'database_helper.dart';
 import 'user_provider.dart';
 import 'notification_page.dart';
 import 'account_page.dart';
+import 'audio_call_page.dart';
+import 'location_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -18,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _latestMetrics;
   List<Map<String, dynamic>> _weeklyMetrics = [];
   bool _isLoading = true;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -47,11 +50,10 @@ class _HomePageState extends State<HomePage> {
     final db = DatabaseHelper.instance;
     final now = DateTime.now();
 
-    // Insert simulated health data for the past 7 days
     for (int i = 6; i >= 0; i--) {
       await db.insertHealthMetric({
         'user_id': userProvider.userId!,
-        'heart_rate': 65 + (i * 5) + (i == 2 ? 15 : 0), // spike on Wednesday
+        'heart_rate': 65 + (i * 5) + (i == 2 ? 15 : 0),
         'blood_pressure_systolic': 120 + i,
         'blood_pressure_diastolic': 80 + i,
         'spo2_level': 95 + (i % 5),
@@ -74,13 +76,239 @@ class _HomePageState extends State<HomePage> {
     final pages = [
       _buildHomePage(userProvider),
       const NotificationsPage(),
+      const LocationPage(),
       const AccountPage(),
     ];
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Colors.white,
+      drawer: _buildDrawer(context, userProvider),
       bottomNavigationBar: _buildBottomNavBar(),
       body: pages[_selectedIndex],
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, UserProvider userProvider) {
+    return Drawer(
+      child: Container(
+        color: Colors.white,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blue.shade400,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.blue,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              userProvider.userName ?? 'User',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              userProvider.userEmail ?? '',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'CATEGORY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            _buildDrawerItem(
+              icon: Icons.dashboard,
+              title: 'Dashboard',
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 0);
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.person,
+              title: 'User',
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 3);
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.history,
+              title: 'History',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('History coming soon')),
+                );
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.devices,
+              title: 'Devices',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Devices coming soon')),
+                );
+              },
+            ),
+            const Divider(height: 1),
+            _buildDrawerItem(
+              icon: Icons.help_outline,
+              title: 'Get Help',
+              hasSubmenu: true,
+              children: [
+                _buildSubMenuItem('Location', () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LocationPage()),
+                  );
+                }),
+                _buildSubMenuItem('Ambulance', () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LocationPage(isAmbulance: true)),
+                  );
+                }),
+                _buildSubMenuItem('Contact', () {
+                  Navigator.pop(context);
+                }),
+                _buildSubMenuItem('Emergency Alert', () {
+                  Navigator.pop(context);
+                }),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'SETTINGS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            _buildDrawerItem(
+              icon: Icons.notifications_outlined,
+              title: 'Notification',
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _selectedIndex = 1);
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.settings_outlined,
+              title: 'Settings',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Settings coming soon')),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.light_mode, size: 20, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  const Text('Light', style: TextStyle(fontSize: 14)),
+                  const Spacer(),
+                  const Icon(Icons.dark_mode, size: 20, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  const Text('Dark', style: TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    VoidCallback? onTap,
+    bool hasSubmenu = false,
+    List<Widget>? children,
+  }) {
+    if (hasSubmenu && children != null) {
+      return ExpansionTile(
+        leading: Icon(icon, color: Colors.grey.shade700),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        trailing: const Icon(Icons.expand_more),
+        children: children,
+      );
+    }
+
+    return ListTile(
+      leading: Icon(icon, color: Colors.grey.shade700),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildSubMenuItem(String title, VoidCallback onTap) {
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 72, right: 16),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 13),
+      ),
+      onTap: onTap,
     );
   }
 
@@ -88,33 +316,54 @@ class _HomePageState extends State<HomePage> {
     return SafeArea(
       child: Column(
         children: [
-          // Greeting Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "HELLO, ${userProvider.userName?.toUpperCase() ?? 'USER'}",
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.favorite, color: Colors.blue, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'HELLO, GOOD MORNING!',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          userProvider.userName ?? 'John Doe',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.person, color: Colors.blue),
+                IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
                 ),
               ],
             ),
           ),
 
-          // Chart Section
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.all(16),
@@ -128,29 +377,20 @@ class _HomePageState extends State<HomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "HEART RATE",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getDateRange(),
-                          style: const TextStyle(color: Colors.black54, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    if (_weeklyMetrics.isEmpty)
-                      TextButton.icon(
-                        onPressed: _simulateHealthData,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add Data', style: TextStyle(fontSize: 12)),
+                    const Text(
+                      'Health Metrics',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    Text(
+                      '140',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -160,66 +400,183 @@ class _HomePageState extends State<HomePage> {
                       ? const Center(child: CircularProgressIndicator())
                       : _buildHeartRateChart(),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildDayLabel('Sun'),
+                    _buildDayLabel('Mon'),
+                    _buildDayLabel('Tue'),
+                    _buildDayLabel('We'),
+                    _buildDayLabel('Thu'),
+                    _buildDayLabel('Fri'),
+                    _buildDayLabel('Sat'),
+                  ],
+                ),
               ],
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 20),
 
-          // Health Monitoring Section
           Expanded(
-            child: SingleChildScrollView(
+            child: GridView.count(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    GridView.count(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.15,
-                      children: [
-                        _buildHealthCard(
-                          icon: Icons.favorite,
-                          title: "HEART RATE",
-                          value: _latestMetrics?['heart_rate']?.toString() ?? "--",
-                          subtitle: "BPM",
-                          color: Colors.red,
-                        ),
-                        _buildHealthCard(
-                          icon: Icons.water_drop,
-                          title: "SpO₂ LEVEL",
-                          value: _latestMetrics?['spo2_level']?.toString() ?? "--",
-                          subtitle: "%",
-                          color: Colors.blue,
-                        ),
-                        _buildHealthCard(
-                          icon: Icons.monitor_heart,
-                          title: "BLOOD PRESSURE",
-                          value: _latestMetrics != null
-                              ? "${_latestMetrics!['blood_pressure_systolic']}/${_latestMetrics!['blood_pressure_diastolic']}"
-                              : "--/--",
-                          subtitle: "mmHg",
-                          color: Colors.indigo,
-                        ),
-                        _buildHealthCard(
-                          icon: Icons.warning,
-                          title: "yeyp FALL DETECTED",
-                          value: "NONE",
-                          subtitle: "",
-                          color: Colors.orange,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.0,
+              children: [
+                _buildMetricCard(
+                  icon: Icons.favorite,
+                  iconColor: Colors.red,
+                  title: 'Heartbeat',
+                  value: '${_latestMetrics?['heart_rate'] ?? 75}',
+                  unit: 'bpm',
+                  subtitle: 'May 8, 2025',
                 ),
-              ),
+                _buildMetricCard(
+                  icon: Icons.bloodtype,
+                  iconColor: Colors.indigo,
+                  title: 'Blood Pressure',
+                  value: _latestMetrics != null
+                      ? '${_latestMetrics!['blood_pressure_systolic']}/${_latestMetrics!['blood_pressure_diastolic']}'
+                      : '120/80',
+                  unit: '',
+                  subtitle: 'May 8, 2025',
+                ),
+                _buildMetricCard(
+                  icon: Icons.water_drop,
+                  iconColor: Colors.blue,
+                  title: 'SpO2 Level',
+                  value: '${_latestMetrics?['spo2_level'] ?? 95}',
+                  unit: '%',
+                  subtitle: 'May 8, 2025',
+                ),
+                _buildMetricCard(
+                  icon: Icons.warning_amber,
+                  iconColor: Colors.orange,
+                  title: 'Fall Detected',
+                  value: 'NONE',
+                  unit: '',
+                  subtitle: '',
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayLabel(String day) {
+    return Text(
+      day,
+      style: TextStyle(
+        fontSize: 11,
+        color: Colors.grey.shade600,
+      ),
+    );
+  }
+
+  Widget _buildMetricCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String unit,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Details',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    unit,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -235,144 +592,84 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // Reverse to show oldest to newest (left to right)
     final reversedMetrics = _weeklyMetrics.reversed.toList();
 
-    return BarChart(
-      BarChartData(
+    return LineChart(
+      LineChartData(
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
         borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                if (value.toInt() >= 0 && value.toInt() < reversedMetrics.length) {
-                  final date = DateTime.parse(reversedMetrics[value.toInt()]['recorded_at']);
-                  final dayIndex = (date.weekday - 1) % 7;
-                  return Text(days[dayIndex]);
-                }
-                return const Text('');
+        lineBarsData: [
+          LineChartBarData(
+            spots: [
+              for (int i = 0; i < reversedMetrics.length; i++)
+                FlSpot(i.toDouble(), (reversedMetrics[i]['heart_rate'] as int).toDouble()),
+            ],
+            isCurved: true,
+            color: Colors.blue,
+            barWidth: 3,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                return FlDotCirclePainter(
+                  radius: 4,
+                  color: Colors.blue,
+                  strokeWidth: 2,
+                  strokeColor: Colors.white,
+                );
               },
             ),
-          ),
-        ),
-        barGroups: [
-          for (int i = 0; i < reversedMetrics.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: (reversedMetrics[i]['heart_rate'] as int).toDouble() / 10,
-                  color: Colors.blue,
-                  width: 12,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _getDateRange() {
-    if (_weeklyMetrics.isEmpty) {
-      final now = DateTime.now();
-      final start = now.subtract(const Duration(days: 6));
-      return "${_formatDate(start)} - ${_formatDate(now)}";
-    }
-
-    final newest = DateTime.parse(_weeklyMetrics.first['recorded_at']);
-    final oldest = DateTime.parse(_weeklyMetrics.last['recorded_at']);
-    return "${_formatDate(oldest)} - ${_formatDate(newest)}";
-  }
-
-  String _formatDate(DateTime date) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return "${date.day} ${months[date.month - 1]}";
-  }
-
-  Widget _buildHealthCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required String subtitle,
-    required Color color,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Flexible(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Colors.black54,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            belowBarData: BarAreaData(
+              show: true,
+              color: Colors.blue.withOpacity(0.1),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (subtitle.isNotEmpty)
-            Text(
-              subtitle,
-              style: const TextStyle(color: Colors.black54, fontSize: 12),
-            ),
         ],
       ),
     );
   }
 
   Widget _buildBottomNavBar() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      selectedItemColor: Colors.blue,
-      unselectedItemColor: Colors.grey,
-      onTap: (index) {
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notifications'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Account'),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.mail_outline),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: '',
+          ),
+        ],
+      ),
     );
   }
 }
