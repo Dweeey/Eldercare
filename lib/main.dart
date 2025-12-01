@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:eldercareapp/utils/constant/colors.dart';
+import 'package:eldercareapp/utils/theme/theme.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
   runApp(const MyApp());
+  
+  // Remove the splash screen after your app is ready
+  FlutterNativeSplash.remove();
 }
 
 class MyApp extends StatelessWidget {
