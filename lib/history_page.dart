@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 /// History page inspired by your design.
-///
+/// Hello pang update lang github ehehehe
 /// Uses static sample data for:
 /// - Heart rate trend
 /// - Blood pressure trend
