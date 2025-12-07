@@ -4,6 +4,7 @@ import 'Login.dart'; // Login screen entry
 import 'user_provider.dart';
 import 'theme_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +50,7 @@ class MyApp extends StatelessWidget {
             ),
             // Theme mode controlled by ThemeProvider (see theme_provider.dart)
             themeMode: themeProvider.themeMode,
-            home: const LoginScreen(),
+            home: const AuthGate(),
           );
         },
       ),

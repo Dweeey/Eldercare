@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'Privacy_page.dart'; // Privacy Policy page
-import 'Login.dart'; // Login screen
-import 'Terms_page.dart'; // Terms of Service page
-import 'database_helper.dart'; // Database helper for SQLite
-import 'Home.dart'; // Home page for guest login
+import 'Privacy_page.dart';
+import 'Login.dart';
+import 'Terms_page.dart';
+import 'Home.dart';
+import '../auth/auth_service.dart'; // Added Supabase Auth Service
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -13,19 +13,17 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  // Controllers for text fields
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isChecked = false;
+  bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
-  // State variables
-  bool _isChecked = false; // Terms & Privacy checkbox
-  bool _isPasswordVisible = false; // Toggle password visibility
-  bool _isLoading = false; // Show loading indicator
+  // Supabase AuthService instance
+  final AuthService authService = AuthService();
 
-  // Sign up function
   Future<void> _signUp() async {
-    // Validate terms agreement
     if (!_isChecked) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please agree to Terms and Privacy Policy')),
@@ -33,7 +31,6 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    // Validate fields
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty) {
@@ -43,15 +40,23 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    // Validate email format
-    if (!_emailController.text.contains('@')) {
+    // Validate name length
+    if (_nameController.text.trim().length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name must be at least 2 characters')),
+      );
+      return;
+    }
+
+    // Better email validation using regex
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+        .hasMatch(_emailController.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid email')),
       );
       return;
     }
 
-    // Validate password length
     if (_passwordController.text.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password must be at least 6 characters')),
@@ -60,36 +65,32 @@ class _SignUpPageState extends State<SignUpPage> {
     }
 
     setState(() {
-      _isLoading = true; // Show loading indicator
+      _isLoading = true;
     });
 
     try {
-      // Insert user into database
-      final db = DatabaseHelper.instance;
-      await db.createUser({
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text, // Consider hashing
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      // Supabase sign up
+      await authService.signUpWithEmailPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
       if (mounted) {
-        _showSuccessDialog(); // Show success dialog
+        _showSuccessDialog();
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email already exists or error occurred')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
     }
   }
 
-  // Success dialog after registration
   void _showSuccessDialog() {
     showDialog(
       context: context,
@@ -124,7 +125,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 Navigator.pop(context);
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const MyLoginApp()), // Navigate to login
+                  MaterialPageRoute(builder: (context) => const MyLoginApp()),
                 );
               },
               child: const Text("Go to Login", style: TextStyle(color: Colors.white)),
@@ -135,7 +136,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Custom text field builder
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,
@@ -174,7 +174,7 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
               onPressed: () {
                 setState(() {
-                  _isPasswordVisible = !_isPasswordVisible; // Toggle password
+                  _isPasswordVisible = !_isPasswordVisible;
                 });
               },
             )
@@ -196,12 +196,12 @@ class _SignUpPageState extends State<SignUpPage> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back_ios, size: 20),
-                  onPressed: () => Navigator.pop(context), // Back button
+                  onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(height: 10),
                 const Center(
                   child: Text(
-                    'Sign Up', // Page title
+                    'Sign Up',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -225,8 +225,6 @@ class _SignUpPageState extends State<SignUpPage> {
                     icon: Icons.lock_outline,
                     isPassword: true),
                 const SizedBox(height: 15),
-
-                // Terms & Privacy checkbox
                 Row(
                   children: [
                     Checkbox(
@@ -246,7 +244,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => const TermsPage()), // Terms page
+                                    builder: (context) => const TermsPage()),
                               );
                             },
                             child: const Text(
@@ -262,7 +260,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => const PrivacyPage()), // Privacy page
+                                    builder: (context) => const PrivacyPage()),
                               );
                             },
                             child: const Text(
@@ -277,9 +275,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 15),
-                // Sign Up button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 55),
@@ -303,7 +299,6 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                 ),
                 const SizedBox(height: 12),
-                // Guest button
                 OutlinedButton(
                   onPressed: () {
                     Navigator.pushReplacement(
@@ -330,7 +325,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Login redirect
                 Center(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -365,7 +359,6 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
-    // Dispose controllers
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();

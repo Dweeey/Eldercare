@@ -4,6 +4,7 @@ import 'Sign_up.dart';
 import 'Home.dart';
 import 'database_helper.dart';
 import 'user_provider.dart';
+import 'auth/auth_service.dart'; // Supabase auth service
 
 void main() {
   runApp(const MyLoginApp());
@@ -41,6 +42,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String _errorMessage = '';
 
+  // Supabase auth service instance
+  final AuthService _authService = AuthService();
+
   Future<void> _login() async {
     setState(() {
       _isLoading = true;
@@ -61,23 +65,19 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      final db = DatabaseHelper.instance;
-      final user = await db.getUser(email, password);
+      // Supabase sign in
+      final response = await _authService.signInWithEmailPassword(email, password);
 
-      if (user != null) {
+      if (response.session != null) {
         // Login successful
         if (mounted) {
-          Provider.of<UserProvider>(context, listen: false).setUser(
-            user['id'] as int,
-            user['name'] as String,
-            user['email'] as String,
-          );
-
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomePage()),
           );
         }
+        // AuthGate will handle navigation automatically due to the auth state change.
       } else {
+        // Handle error
         setState(() {
           _isError = true;
           _errorMessage = 'Invalid email or password';
@@ -87,7 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() {
         _isError = true;
-        _errorMessage = 'An error occurred. Please try again.';
+        _errorMessage = e.toString().contains('Invalid login credentials')
+            ? 'Invalid email or password'
+            : 'An error occurred. Please try again.';
         _isLoading = false;
       });
     }
