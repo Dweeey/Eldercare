@@ -35,6 +35,10 @@ flutter analyze
 flutter test
 ```
 
+## Additional Docs
+
+- `docs/SUPABASE_SETUP.md` database schema + RLS setup
+
 ## Project Structure
 
 - `lib/core/providers/` shared app state providers

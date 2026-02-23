@@ -86,7 +86,7 @@ class _MessagePageState extends State<MessagePage> {
                     child: TextField(
                       controller: _controller,
                       decoration: const InputDecoration(
-                        hintText: 'Type a message…',
+                        hintText: 'Type a message...',
                         border: InputBorder.none,
                       ),
                       onSubmitted: (_) => _sendMessage(),

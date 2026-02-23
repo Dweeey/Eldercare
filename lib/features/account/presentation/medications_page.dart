@@ -61,6 +61,10 @@ class _MedicationsPageState extends State<MedicationsPage> {
       builder: (context) => const AddMedicationDialog(),
     );
 
+    if (!mounted) {
+      return;
+    }
+
     if (result != null) {
       try {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -120,6 +124,10 @@ class _MedicationsPageState extends State<MedicationsPage> {
         ],
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
 
     if (confirmed == true) {
       try {

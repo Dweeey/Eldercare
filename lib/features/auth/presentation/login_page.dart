@@ -43,6 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final authService = AuthService();
       final response = await authService.signInWithEmailPassword(email, password);
 
+      if (!mounted) {
+        return;
+      }
+
       if (response.session != null) {
         // Login successful - set user data in provider
         final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -52,9 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
           response.user!.email ?? email,
         );
 
-        if (!mounted) {
-          return;
-        }
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil(AppRoutes.authGate, (route) => false);

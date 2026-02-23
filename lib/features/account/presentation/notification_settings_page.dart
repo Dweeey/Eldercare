@@ -278,7 +278,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     required String title,
     required String subtitle,
     required bool value,
-    required Function(bool) onChanged,
+    required ValueChanged<bool> onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

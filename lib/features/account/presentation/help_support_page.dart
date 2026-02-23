@@ -47,6 +47,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       builder: (context) => const SupportRequestDialog(),
     );
 
+    if (!mounted) {
+      return;
+    }
+
     if (result != null) {
       try {
         final userProvider = Provider.of<UserProvider>(context, listen: false);

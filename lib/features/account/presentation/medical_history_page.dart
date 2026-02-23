@@ -25,6 +25,11 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
       lastDate: now,
       initialDateRange: _customRange ?? DateTimeRange(start: now.subtract(const Duration(days: 7)), end: now),
     );
+
+    if (!mounted) {
+      return;
+    }
+
     if (picked != null) {
       setState(() {
         _range = 'Custom';
@@ -119,7 +124,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                 _HistoryEntry(
                   date: 'Nov 15, 2025',
                   title: 'Oxygen Saturation Drop',
-                  summary: 'Short episode of low SpO₂, recovered quickly.',
+                  summary: 'Short episode of low SpO2, recovered quickly.',
                 ),
                 _HistoryEntry(
                   date: 'Nov 1, 2025',

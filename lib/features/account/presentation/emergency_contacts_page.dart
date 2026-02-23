@@ -62,6 +62,10 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       builder: (context) => const AddContactDialog(),
     );
 
+    if (!mounted) {
+      return;
+    }
+
     if (result != null) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final userId = userProvider.userId ?? Supabase.instance.client.auth.currentUser?.id;
@@ -120,6 +124,10 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
         ],
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
 
     if (confirmed == true) {
       try {

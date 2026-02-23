@@ -64,8 +64,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/logos/eldercare-logo-black.png
-    - assets/logos/eldercare-logo-white.png
+    - assets/logos/
 
 
   # The following line ensures that the Material Icons font is

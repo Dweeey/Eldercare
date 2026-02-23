@@ -1,17 +1,7 @@
-import 'package:eldercareapp/features/account/presentation/account_page.dart';
-import 'package:eldercareapp/features/account/presentation/emergency_contacts_page.dart';
-import 'package:eldercareapp/features/account/presentation/help_support_page.dart';
-import 'package:eldercareapp/features/account/presentation/medical_history_page.dart';
-import 'package:eldercareapp/features/account/presentation/medications_page.dart';
-import 'package:eldercareapp/features/account/presentation/notification_settings_page.dart';
-import 'package:eldercareapp/features/account/presentation/privacy_policy_page.dart';
-import 'package:eldercareapp/features/alerts/presentation/alerts_page.dart';
-import 'package:eldercareapp/features/auth/presentation/auth_gate.dart';
-import 'package:eldercareapp/features/auth/presentation/login_page.dart';
-import 'package:eldercareapp/features/auth/presentation/sign_up_page.dart';
-import 'package:eldercareapp/features/home/presentation/history_page.dart';
-import 'package:eldercareapp/features/home/presentation/home_page.dart';
-import 'package:eldercareapp/features/home/presentation/location_page.dart';
+import 'package:eldercareapp/features/account/presentation/presentation.dart';
+import 'package:eldercareapp/features/alerts/presentation/presentation.dart';
+import 'package:eldercareapp/features/auth/presentation/presentation.dart';
+import 'package:eldercareapp/features/home/presentation/presentation.dart';
 import 'package:flutter/material.dart';
 
 class AppRoutes {
