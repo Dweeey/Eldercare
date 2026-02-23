@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
-import 'database_helper.dart';
-import 'user_provider.dart';
-import 'notification_page.dart';
-import 'account_page.dart';
-import 'location_page.dart';
-import 'history_page.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/features/account/presentation/account_page.dart';
+import 'package:eldercareapp/features/alerts/presentation/alerts_page.dart';
+import 'package:eldercareapp/features/home/data/health_metrics_repository.dart';
+import 'package:eldercareapp/features/home/presentation/history_page.dart';
+import 'package:eldercareapp/features/home/presentation/location_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -20,7 +20,10 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic>? _latestMetrics;
   List<Map<String, dynamic>> _weeklyMetrics = [];
   bool _isLoading = true;
+  bool _isGuestUser = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final HealthMetricsRepository _healthMetricsRepository =
+      HealthMetricsRepository();
 
   @override
   void initState() {
@@ -30,43 +33,40 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadHealthData() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (userProvider.userId == null) return;
-
-    final db = DatabaseHelper.instance;
-    final latest = await db.getLatestHealthMetric(userProvider.userId!);
-    final weekly = await db.getHealthMetrics(userProvider.userId!, limit: 7);
-
-    setState(() {
-      _latestMetrics = latest;
-      _weeklyMetrics = weekly;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _simulateHealthData() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (userProvider.userId == null) return;
-
-    final db = DatabaseHelper.instance;
-    final now = DateTime.now();
-
-    for (int i = 6; i >= 0; i--) {
-      await db.insertHealthMetric({
-        'user_id': userProvider.userId!,
-        'heart_rate': 65 + (i * 5) + (i == 2 ? 15 : 0),
-        'blood_pressure_systolic': 120 + i,
-        'blood_pressure_diastolic': 80 + i,
-        'spo2_level': 95 + (i % 5),
-        'recorded_at': now.subtract(Duration(days: i)).toIso8601String(),
+    final userId = userProvider.userId;
+    if (userId == null) {
+      setState(() {
+        _isGuestUser = true;
+        _isLoading = false;
+        _latestMetrics = null;
+        _weeklyMetrics = [];
       });
+      return;
     }
 
-    _loadHealthData();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sample health data generated!')),
+    try {
+      final latestMetric = await _healthMetricsRepository.getLatestMetric(
+        userId,
       );
+      final weeklyMetrics = await _healthMetricsRepository.getWeeklyMetrics(
+        userId,
+      );
+
+      setState(() {
+        _isGuestUser = false;
+        _latestMetrics = latestMetric;
+        _weeklyMetrics = weeklyMetrics;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading health data: $e')),
+        );
+      }
     }
   }
 
@@ -79,7 +79,7 @@ class _HomePageState extends State<HomePage> {
     // AND the icons in _buildBottomNavBar() so they stay in sync.
     final pages = [
       _buildHomePage(userProvider), // index 0 -> Home icon
-      const NotificationsPage(),    // index 1 -> Alerts/messages icon
+      const AlertsPage(),           // index 1 -> Alerts/messages icon
       const HistoryPage(),          // index 2 -> History (calendar) icon
       const AccountPage(),          // index 3 -> User/account icon
     ];
@@ -402,6 +402,13 @@ class _HomePageState extends State<HomePage> {
                   height: 150,
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
+                      : _isGuestUser
+                          ? Center(
+                              child: Text(
+                                'Sign in to load health data',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                            )
                       : _buildHeartRateChart(),
                 ),
                 const SizedBox(height: 8),
@@ -499,7 +506,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -513,7 +520,7 @@ class _HomePageState extends State<HomePage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: iconColor, size: 20),
@@ -625,7 +632,7 @@ class _HomePageState extends State<HomePage> {
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withValues(alpha: 0.1),
             ),
           ),
         ],
@@ -638,7 +645,7 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),

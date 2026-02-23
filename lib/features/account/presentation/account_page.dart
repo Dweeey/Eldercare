@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'user_provider.dart';
-import 'Login.dart';
-import 'emergency_contacts_page.dart';
-import 'theme_provider.dart';
-import 'medical_history_page.dart';
+import 'package:eldercareapp/app_routes.dart';
+import 'package:eldercareapp/core/providers/theme_provider.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/features/auth/data/auth_service.dart';
 
 class AccountPage extends StatefulWidget {
-  const AccountPage({Key? key}) : super(key: key);
+  const AccountPage({super.key});
 
   @override
   State<AccountPage> createState() => _AccountPageState();
@@ -49,7 +48,7 @@ class _AccountPageState extends State<AccountPage> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
@@ -75,7 +74,7 @@ class _AccountPageState extends State<AccountPage> {
                     userProvider.userEmail ?? '',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                 ],
@@ -97,11 +96,8 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Emergency Contacts',
                         subtitle: 'Manage your emergency contacts',
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const EmergencyContactsPage(),
-                            ),
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.emergencyContacts,
                           );
                         },
                       ),
@@ -110,11 +106,8 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Medical History',
                         subtitle: 'View and export your health records',
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MedicalHistoryPage(),
-                            ),
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.medicalHistory,
                           );
                         },
                       ),
@@ -123,7 +116,9 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Medications',
                         subtitle: 'Track your medications',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.medications,
+                          );
                         },
                       ),
                     ],
@@ -139,7 +134,9 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Notifications',
                         subtitle: 'Manage notification settings',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.notificationSettings,
+                          );
                         },
                       ),
                       _buildSettingsItem(
@@ -172,7 +169,9 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Help & Support',
                         subtitle: 'Get help with the app',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.helpSupport,
+                          );
                         },
                       ),
                       _buildSettingsItem(
@@ -180,7 +179,9 @@ class _AccountPageState extends State<AccountPage> {
                         title: 'Privacy Policy',
                         subtitle: 'View our privacy policy',
                         onTap: () {
-                          _showComingSoonDialog(context);
+                          Navigator.of(context).pushNamed(
+                            AppRoutes.privacyPolicy,
+                          );
                         },
                       ),
                       _buildSettingsItem(
@@ -248,7 +249,7 @@ class _AccountPageState extends State<AccountPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -339,10 +340,24 @@ class _AccountPageState extends State<AccountPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              try {
+                final authService = AuthService();
+                await authService.signOut();
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error during logout: $e')),
+                  );
+                }
+              }
+
+              if (!context.mounted) {
+                return;
+              }
               Provider.of<UserProvider>(context, listen: false).logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const MyLoginApp()),
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                AppRoutes.authGate,
                 (route) => false,
               );
             },

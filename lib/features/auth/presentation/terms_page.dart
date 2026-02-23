@@ -9,7 +9,7 @@ class TermsPage extends StatelessWidget {
       backgroundColor: Colors.blue.shade50,
       appBar: AppBar(
         title: const Text('Terms of Service'),
-        backgroundColor: Colors.blue.withOpacity(0.9),
+        backgroundColor: Colors.blue.withValues(alpha: 0.9),
         elevation: 0,
       ),
       body: Center(
@@ -18,7 +18,7 @@ class TermsPage extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(

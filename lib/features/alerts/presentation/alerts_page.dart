@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'audio_call_page.dart';
-import 'location_page.dart';
 import 'message_page.dart';
 import 'alert_details_page.dart';
 
@@ -22,14 +21,14 @@ class AlertItem {
   });
 }
 
-class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({Key? key}) : super(key: key);
+class AlertsPage extends StatefulWidget {
+  const AlertsPage({super.key});
 
   @override
-  State<NotificationsPage> createState() => _NotificationsPageState();
+  State<AlertsPage> createState() => _AlertsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
+class _AlertsPageState extends State<AlertsPage> {
   int _selectedTab = 0; // 0 = All, 1 = Warning, 2 = Critical
 
   final List<AlertItem> _alerts = const [
@@ -258,7 +257,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
+                    color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: accentColor),

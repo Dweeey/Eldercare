@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'location_page.dart';
+import 'package:eldercareapp/features/home/presentation/location_page.dart';
 
 /// Detailed view for an alert.
 ///
@@ -72,7 +72,7 @@ class AlertDetailsPage extends StatelessWidget {
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.15),
+                            color: Colors.blue.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -162,13 +162,6 @@ class AlertDetailsPage extends StatelessWidget {
   Widget _buildVitalsCard(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Static sample values you can later replace with real-time data
-    // from your database or watch connection.
-    const heartRate = 118; // bpm
-    const systolic = 140;
-    const diastolic = 90;
-    const spo2 = 93; // %
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -176,7 +169,7 @@ class AlertDetailsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),

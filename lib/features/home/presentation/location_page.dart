@@ -74,7 +74,7 @@ class LocationPage extends StatelessWidget {
                         width: 72,
                         height: 72,
                         decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.15),
+                          color: Colors.blue.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: Center(

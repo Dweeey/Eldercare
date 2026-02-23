@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'database_helper.dart';
-import 'user_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/features/account/data/emergency_contacts_repository.dart';
 
 class EmergencyContactsPage extends StatefulWidget {
-  const EmergencyContactsPage({Key? key}) : super(key: key);
+  const EmergencyContactsPage({super.key});
 
   @override
   State<EmergencyContactsPage> createState() => _EmergencyContactsPageState();
@@ -13,24 +14,46 @@ class EmergencyContactsPage extends StatefulWidget {
 class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoading = true;
+  bool _isGuestUser = false;
+  final EmergencyContactsRepository _emergencyContactsRepository =
+      EmergencyContactsRepository();
 
   @override
   void initState() {
     super.initState();
     _loadContacts();
   }
-
+ 
   Future<void> _loadContacts() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    if (userProvider.userId == null) return;
+    final userId = userProvider.userId ?? Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      setState(() {
+        _isGuestUser = true;
+        _isLoading = false;
+        _contacts = [];
+      });
+      return;
+    }
 
-    final db = DatabaseHelper.instance;
-    final contacts = await db.getEmergencyContacts(userProvider.userId!);
+    try {
+      final response = await _emergencyContactsRepository.fetchContacts(userId);
 
-    setState(() {
-      _contacts = contacts;
-      _isLoading = false;
-    });
+      setState(() {
+        _isGuestUser = false;
+        _contacts = response;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading contacts: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _addContact() async {
@@ -41,21 +64,38 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     if (result != null) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final db = DatabaseHelper.instance;
+      final userId = userProvider.userId ?? Supabase.instance.client.auth.currentUser?.id;
 
-      await db.insertEmergencyContact({
-        'user_id': userProvider.userId!,
-        'name': result['name']!,
-        'phone': result['phone']!,
-        'relationship': result['relationship']!,
-      });
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
+      }
 
-      _loadContacts();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Contact added successfully')),
+      try {
+        await _emergencyContactsRepository.addContact(
+          userId: userId,
+          name: result['name']!,
+          phone: result['phone']!,
+          relationship: result['relationship']!,
         );
+
+        _loadContacts();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Contact added successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error adding contact: $e')),
+          );
+        }
       }
     }
   }
@@ -82,14 +122,22 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     );
 
     if (confirmed == true) {
-      final db = DatabaseHelper.instance;
-      await db.deleteEmergencyContact(contactId);
-      _loadContacts();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Contact deleted')),
-        );
+      try {
+        await _emergencyContactsRepository.deleteContact(contactId);
+
+        _loadContacts();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Contact deleted')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting contact: $e')),
+          );
+        }
       }
     }
   }
@@ -110,6 +158,13 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _isGuestUser
+              ? Center(
+                  child: Text(
+                    'Sign in to manage emergency contacts',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                )
           : _contacts.isEmpty
               ? Center(
                   child: Column(
@@ -225,7 +280,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 }
 
 class AddContactDialog extends StatefulWidget {
-  const AddContactDialog({Key? key}) : super(key: key);
+  const AddContactDialog({super.key});
 
   @override
   State<AddContactDialog> createState() => _AddContactDialogState();

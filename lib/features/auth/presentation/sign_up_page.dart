@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'Privacy_page.dart';
-import 'Login.dart';
-import 'Terms_page.dart';
-import 'Home.dart';
-import '../auth/auth_service.dart'; // Added Supabase Auth Service
+import 'package:eldercareapp/app_routes.dart';
+import 'package:eldercareapp/features/account/presentation/privacy_policy_page.dart';
+import 'package:eldercareapp/features/auth/data/auth_service.dart';
+import 'package:eldercareapp/features/auth/presentation/terms_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -76,6 +75,9 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         _showSuccessDialog();
       }
     } catch (e) {
@@ -123,9 +125,8 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MyLoginApp()),
+                Navigator.of(context).pushReplacementNamed(
+                  AppRoutes.login,
                 );
               },
               child: const Text("Go to Login", style: TextStyle(color: Colors.white)),
@@ -260,7 +261,9 @@ class _SignUpPageState extends State<SignUpPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => const PrivacyPage()),
+                                  builder: (context) =>
+                                      const PrivacyPolicyPage(),
+                                ),
                               );
                             },
                             child: const Text(
@@ -301,11 +304,9 @@ class _SignUpPageState extends State<SignUpPage> {
                 const SizedBox(height: 12),
                 OutlinedButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HomePage(),
-                      ),
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      AppRoutes.home,
+                      (route) => false,
                     );
                   },
                   style: OutlinedButton.styleFrom(
@@ -332,11 +333,8 @@ class _SignUpPageState extends State<SignUpPage> {
                       const Text("Already have an account? "),
                       GestureDetector(
                         onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MyLoginApp(),
-                            ),
+                          Navigator.of(context).pushReplacementNamed(
+                            AppRoutes.login,
                           );
                         },
                         child: const Text(

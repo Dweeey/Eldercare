@@ -1,31 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'Sign_up.dart';
-import 'Home.dart';
-import 'database_helper.dart';
-import 'user_provider.dart';
-import 'auth/auth_service.dart'; // Supabase auth service
-
-void main() {
-  runApp(const MyLoginApp());
-}
-
-class MyLoginApp extends StatelessWidget {
-  const MyLoginApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Modern Login',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-        useMaterial3: true,
-      ),
-      home: const LoginScreen(),
-    );
-  }
-}
+import 'package:eldercareapp/app_routes.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/features/auth/data/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,9 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isError = false;
   bool _isLoading = false;
   String _errorMessage = '';
-
-  // Supabase auth service instance
-  final AuthService _authService = AuthService();
 
   Future<void> _login() async {
     setState(() {
@@ -66,16 +40,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // Supabase sign in
-      final response = await _authService.signInWithEmailPassword(email, password);
+      final authService = AuthService();
+      final response = await authService.signInWithEmailPassword(email, password);
 
       if (response.session != null) {
-        // Login successful
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomePage()),
-          );
+        // Login successful - set user data in provider
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        userProvider.setUser(
+          response.user!.id,
+          response.user!.userMetadata?['name'] ?? 'User',
+          response.user!.email ?? email,
+        );
+
+        if (!mounted) {
+          return;
         }
-        // AuthGate will handle navigation automatically due to the auth state change.
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(AppRoutes.authGate, (route) => false);
       } else {
         // Handle error
         setState(() {
@@ -286,10 +268,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (context) => const HomePage(),
-                      ),
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      AppRoutes.home,
+                      (route) => false,
                     );
                   },
                   style: OutlinedButton.styleFrom(
@@ -320,11 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const SignUpPage()),
-                      );
+                      Navigator.of(context).pushNamed(AppRoutes.signUp);
                     },
                     child: const Text(
                       "Sign Up",

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../Login.dart'; // Login page
-import '../Home.dart'; // Home page after authentication
+import 'package:provider/provider.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/features/auth/presentation/login_page.dart';
+import 'package:eldercareapp/features/home/presentation/home_page.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -21,9 +23,23 @@ class AuthGate extends StatelessWidget {
 
         // Get current session from snapshot
         final session = snapshot.data?.session;
+        final user = session?.user;
+
+        // Update UserProvider with user data
+        if (user != null) {
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.setUser(
+            user.id,
+            user.userMetadata?['full_name'] ?? user.email?.split('@').first ?? 'User',
+            user.email ?? '',
+          );
+        } else {
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.clearUser();
+        }
 
         // Navigate based on authentication state
-        if (session != null && session.user != null) {
+        if (session != null && user != null) {
           // User is authenticated -> go to Home page
           return const HomePage();
         } else {

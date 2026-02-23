@@ -1,28 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'Login.dart'; // Login screen entry
-import 'user_provider.dart';
-import 'theme_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth/auth_gate.dart';
+import 'package:eldercareapp/app_config.dart';
+import 'package:eldercareapp/app_routes.dart';
+import 'package:eldercareapp/core/providers/theme_provider.dart';
+import 'package:eldercareapp/core/providers/user_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Supabase setup
-  await Supabase.initialize(
-    url: 'https://qfrpqgbgspfgqpqnlsat.supabase.co',
-    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcnBxZ2Jnc3BmZ3FwcW5sc2F0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNzExNTMsImV4cCI6MjA4MDY0NzE1M30.i7GcE-aPI-gZqBiBTVxKtcp04JaKooxp1jzLj3jIzeM"
-  );
+  String? startupError;
+  try {
+    final config = AppConfig.fromEnvironment();
+    await Supabase.initialize(
+      url: config.supabaseUrl,
+      anonKey: config.supabaseAnonKey,
+    );
+  } catch (e) {
+    startupError = e.toString();
+  }
 
-  runApp(const MyApp());
+  runApp(MyApp(startupError: startupError));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.startupError});
+
+  final String? startupError;
 
   @override
   Widget build(BuildContext context) {
+    if (startupError != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: _StartupErrorScreen(errorMessage: startupError!),
+      );
+    }
+
     return MultiProvider(
       // If you add more global providers later, put them in this list.
       providers: [
@@ -48,11 +62,52 @@ class MyApp extends StatelessWidget {
               ),
               useMaterial3: false,
             ),
-            // Theme mode controlled by ThemeProvider (see theme_provider.dart)
+            // Theme mode is controlled by ThemeProvider.
             themeMode: themeProvider.themeMode,
-            home: const AuthGate(),
+            onGenerateRoute: AppRoutes.onGenerateRoute,
+            initialRoute: AppRoutes.authGate,
           );
         },
+      ),
+    );
+  }
+}
+
+class _StartupErrorScreen extends StatelessWidget {
+  const _StartupErrorScreen({required this.errorMessage});
+
+  final String errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'Startup Configuration Error',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                errorMessage,
+                style: const TextStyle(fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Run with:\nflutter run --dart-define=SUPABASE_URL=<your-url> --dart-define=SUPABASE_ANON_KEY=<your-anon-key>',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
