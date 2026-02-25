@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/account/data/medications_repository.dart';
 
@@ -15,7 +15,7 @@ class _MedicationsPageState extends State<MedicationsPage> {
   List<Map<String, dynamic>> _medications = [];
   bool _isLoading = true;
   bool _isGuestUser = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final MedicationsRepository _medicationsRepository = MedicationsRepository();
 
   @override
@@ -27,7 +27,7 @@ class _MedicationsPageState extends State<MedicationsPage> {
   Future<void> _loadMedications() async {
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final userId = userProvider.userId ?? _supabase.auth.currentUser?.id;
+      final userId = userProvider.userId ?? _auth.currentUser?.uid;
 
       if (userId == null) {
         setState(() {
@@ -68,7 +68,7 @@ class _MedicationsPageState extends State<MedicationsPage> {
     if (result != null) {
       try {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final userId = userProvider.userId ?? _supabase.auth.currentUser?.id;
+        final userId = userProvider.userId ?? _auth.currentUser?.uid;
 
         if (userId == null) {
           if (mounted) {
@@ -104,7 +104,7 @@ class _MedicationsPageState extends State<MedicationsPage> {
     }
   }
 
-  Future<void> _deleteMedication(int medicationId, String name) async {
+  Future<void> _deleteMedication(String medicationId, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -131,7 +131,14 @@ class _MedicationsPageState extends State<MedicationsPage> {
 
     if (confirmed == true) {
       try {
-        await _medicationsRepository.deleteMedication(medicationId);
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final userId = userProvider.userId ?? _auth.currentUser?.uid;
+
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+
+        await _medicationsRepository.deleteMedication(userId, medicationId);
         _loadMedications();
 
         if (mounted) {

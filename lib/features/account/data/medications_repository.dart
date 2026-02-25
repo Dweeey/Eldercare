@@ -1,15 +1,18 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MedicationsRepository {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  MedicationsRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  MedicationsRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<List<Map<String, dynamic>>> fetchMedications(String userId) async {
-    final response =
-        await _client.from('medications').select().eq('user_id', userId);
-    return List<Map<String, dynamic>>.from(response);
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('medications')
+        .get();
+    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
   }
 
   Future<void> addMedication({
@@ -19,17 +22,26 @@ class MedicationsRepository {
     required String frequency,
     required String reason,
   }) async {
-    await _client.from('medications').insert({
-      'user_id': userId,
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('medications')
+        .add({
       'name': name,
       'dosage': dosage,
       'frequency': frequency,
       'reason': reason,
       'start_date': DateTime.now().toIso8601String(),
+      'created_at': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> deleteMedication(int medicationId) async {
-    await _client.from('medications').delete().eq('id', medicationId);
+  Future<void> deleteMedication(String userId, String medicationId) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('medications')
+        .doc(medicationId)
+        .delete();
   }
 }

@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Supabase sign in
+      // Firebase sign in
       final authService = AuthService();
       final response = await authService.signInWithEmailPassword(email, password);
 
@@ -47,12 +47,12 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      if (response.session != null) {
+      if (response.user != null) {
         // Login successful - set user data in provider
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         userProvider.setUser(
-          response.user!.id,
-          response.user!.userMetadata?['name'] ?? 'User',
+          response.user!.uid,
+          response.user!.displayName ?? 'User',
           response.user!.email ?? email,
         );
 

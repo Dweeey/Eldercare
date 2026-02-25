@@ -1,26 +1,14 @@
 class AppConfig {
-  final String supabaseUrl;
-  final String supabaseAnonKey;
+  // Firebase configuration for web
+  static const String firebaseApiKey = 'AIzaSyAU2sccq4OX9Gsx3GIlAAJSCnC9nPwR3Yo';
+  static const String firebaseProjectId = 'eldercareplus-7bed9';
+  static const String firebaseMessagingSenderId = '909778576380';
+  static const String firebaseAppId = '1:909778576380:web:';
+  static const String firebaseAuthDomain = 'eldercareplus-7bed9.firebaseapp.com';
 
-  const AppConfig({
-    required this.supabaseUrl,
-    required this.supabaseAnonKey,
-  });
+  const AppConfig();
 
   static AppConfig fromEnvironment() {
-    const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-    const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-
-    if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-      throw const FormatException(
-        'Missing SUPABASE_URL or SUPABASE_ANON_KEY. '
-        'Pass both using --dart-define.',
-      );
-    }
-
-    return const AppConfig(
-      supabaseUrl: supabaseUrl,
-      supabaseAnonKey: supabaseAnonKey,
-    );
+    return const AppConfig();
   }
 }

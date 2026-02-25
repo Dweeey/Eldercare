@@ -68,17 +68,21 @@ class _SignUpPageState extends State<SignUpPage> {
     });
 
     try {
-      // Supabase sign up
-      await authService.signUpWithEmailPassword(
+      // Firebase sign up with display name
+      final result = await authService.signUpWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
+        displayName: _nameController.text.trim(),
       );
 
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        _showSuccessDialog();
+        
+        if (result.user != null) {
+          _showSuccessDialog();
+        }
       }
     } catch (e) {
       setState(() {
@@ -86,8 +90,19 @@ class _SignUpPageState extends State<SignUpPage> {
       });
 
       if (mounted) {
+        String errorMessage = 'Error: ';
+        if (e.toString().contains('email-already-in-use')) {
+          errorMessage = 'This email is already registered';
+        } else if (e.toString().contains('weak-password')) {
+          errorMessage = 'Password is too weak';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = 'Please enter a valid email';
+        } else {
+          errorMessage += e.toString();
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(errorMessage)),
         );
       }
     }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/account/data/support_repository.dart';
@@ -14,7 +14,6 @@ class HelpSupportPage extends StatefulWidget {
 class _HelpSupportPageState extends State<HelpSupportPage> {
   List<Map<String, dynamic>> _faqs = [];
   bool _isLoading = true;
-  final SupabaseClient _supabase = Supabase.instance.client;
   final SupportRepository _supportRepository = SupportRepository();
 
   @override
@@ -54,7 +53,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     if (result != null) {
       try {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final userId = userProvider.userId ?? _supabase.auth.currentUser?.id;
+        final userId = userProvider.userId ?? FirebaseAuth.instance.currentUser?.uid;
 
         if (userId == null) {
           if (mounted) {

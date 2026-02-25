@@ -1,21 +1,22 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationSettingsRepository {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  NotificationSettingsRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  NotificationSettingsRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<Map<String, dynamic>?> fetchSettings(String userId) async {
-    final response = await _client
-        .from('notification_settings')
-        .select()
-        .eq('user_id', userId)
-        .maybeSingle();
-    if (response == null) {
+    final doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('notifications')
+        .get();
+    if (!doc.exists) {
       return null;
     }
-    return Map<String, dynamic>.from(response);
+    return doc.data();
   }
 
   Future<void> saveSettings({
@@ -27,15 +28,19 @@ class NotificationSettingsRepository {
     required bool emergencyAlerts,
     required bool healthUpdates,
   }) async {
-    await _client.from('notification_settings').upsert({
-      'user_id': userId,
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('settings')
+        .doc('notifications')
+        .set({
       'email_notifications': emailNotifications,
       'push_notifications': pushNotifications,
       'medication_reminders': medicationReminders,
       'appointment_reminders': appointmentReminders,
       'emergency_alerts': emergencyAlerts,
       'health_updates': healthUpdates,
-      'updated_at': DateTime.now().toIso8601String(),
-    });
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

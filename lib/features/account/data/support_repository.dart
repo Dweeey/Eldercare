@@ -1,17 +1,19 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SupportRepository {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  SupportRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  SupportRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<List<Map<String, dynamic>>> fetchFaqs() async {
-    final response = await _client.from('faqs').select().order(
-          'order',
-          ascending: true,
-        );
-    return List<Map<String, dynamic>>.from(response);
+    final snapshot = await _firestore
+        .collection('faqs')
+        .orderBy('order', descending: false)
+        .get();
+    return snapshot.docs
+        .map((doc) => {...doc.data(), 'id': doc.id})
+        .toList();
   }
 
   Future<void> submitSupportRequest({
@@ -20,13 +22,16 @@ class SupportRepository {
     required String message,
     required String category,
   }) async {
-    await _client.from('support_requests').insert({
-      'user_id': userId,
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('support_requests')
+        .add({
       'subject': subject,
       'message': message,
       'category': category,
       'status': 'open',
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': FieldValue.serverTimestamp(),
     });
   }
 }

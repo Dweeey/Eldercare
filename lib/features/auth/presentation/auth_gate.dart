@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/auth/presentation/login_page.dart';
@@ -10,9 +10,9 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AuthState>(
+    return StreamBuilder<User?>(
       // Listen to auth state changes
-      stream: Supabase.instance.client.auth.onAuthStateChange,
+      stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         // Show loading indicator while waiting for auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -21,16 +21,15 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        // Get current session from snapshot
-        final session = snapshot.data?.session;
-        final user = session?.user;
+        // Get current user from snapshot
+        final user = snapshot.data;
 
         // Update UserProvider with user data
         if (user != null) {
           final userProvider = Provider.of<UserProvider>(context, listen: false);
           userProvider.setUser(
-            user.id,
-            user.userMetadata?['full_name'] ?? user.email?.split('@').first ?? 'User',
+            user.uid,
+            user.displayName ?? user.email?.split('@').first ?? 'User',
             user.email ?? '',
           );
         } else {
@@ -39,7 +38,7 @@ class AuthGate extends StatelessWidget {
         }
 
         // Navigate based on authentication state
-        if (session != null && user != null) {
+        if (user != null) {
           // User is authenticated -> go to Home page
           return const HomePage();
         } else {

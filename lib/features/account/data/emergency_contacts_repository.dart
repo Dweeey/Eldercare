@@ -1,17 +1,18 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EmergencyContactsRepository {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  EmergencyContactsRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  EmergencyContactsRepository({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<List<Map<String, dynamic>>> fetchContacts(String userId) async {
-    final response = await _client
-        .from('emergency_contacts')
-        .select()
-        .eq('user_id', userId);
-    return List<Map<String, dynamic>>.from(response);
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('emergency_contacts')
+        .get();
+    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
   }
 
   Future<void> addContact({
@@ -20,15 +21,24 @@ class EmergencyContactsRepository {
     required String phone,
     required String relationship,
   }) async {
-    await _client.from('emergency_contacts').insert({
-      'user_id': userId,
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('emergency_contacts')
+        .add({
       'name': name,
       'phone': phone,
       'relationship': relationship,
+      'created_at': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> deleteContact(int contactId) async {
-    await _client.from('emergency_contacts').delete().eq('id', contactId);
+  Future<void> deleteContact(String userId, String contactId) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('emergency_contacts')
+        .doc(contactId)
+        .delete();
   }
 }

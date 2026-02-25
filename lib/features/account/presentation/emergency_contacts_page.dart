@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/account/data/emergency_contacts_repository.dart';
 
@@ -26,7 +26,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
  
   Future<void> _loadContacts() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final userId = userProvider.userId ?? Supabase.instance.client.auth.currentUser?.id;
+    final userId = userProvider.userId ?? FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
       setState(() {
         _isGuestUser = true;
@@ -68,7 +68,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     if (result != null) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final userId = userProvider.userId ?? Supabase.instance.client.auth.currentUser?.id;
+      final userId = userProvider.userId ?? FirebaseAuth.instance.currentUser?.uid;
 
       if (userId == null) {
         if (mounted) {
@@ -104,7 +104,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
     }
   }
 
-  Future<void> _deleteContact(int contactId, String name) async {
+  Future<void> _deleteContact(String contactId, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -131,7 +131,14 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
 
     if (confirmed == true) {
       try {
-        await _emergencyContactsRepository.deleteContact(contactId);
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        final userId = userProvider.userId ?? FirebaseAuth.instance.currentUser?.uid;
+
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
+
+        await _emergencyContactsRepository.deleteContact(userId, contactId);
 
         _loadContacts();
 

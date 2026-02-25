@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:eldercareapp/app_config.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'package:eldercareapp/app_routes.dart';
 import 'package:eldercareapp/core/providers/theme_provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
@@ -11,10 +11,8 @@ void main() async {
 
   String? startupError;
   try {
-    final config = AppConfig.fromEnvironment();
-    await Supabase.initialize(
-      url: config.supabaseUrl,
-      anonKey: config.supabaseAnonKey,
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
   } catch (e) {
     startupError = e.toString();
@@ -90,7 +88,7 @@ class _StartupErrorScreen extends StatelessWidget {
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 16),
               const Text(
-                'Startup Configuration Error',
+                'Firebase Initialization Error',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
@@ -98,11 +96,6 @@ class _StartupErrorScreen extends StatelessWidget {
               Text(
                 errorMessage,
                 style: const TextStyle(fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Run with:\nflutter run --dart-define=SUPABASE_URL=<your-url> --dart-define=SUPABASE_ANON_KEY=<your-anon-key>',
                 textAlign: TextAlign.center,
               ),
             ],

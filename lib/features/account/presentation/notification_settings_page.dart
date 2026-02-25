@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/account/data/notification_settings_repository.dart';
 
@@ -22,7 +22,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool _isLoading = false;
   bool _isGuestUser = false;
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationSettingsRepository _notificationSettingsRepository =
       NotificationSettingsRepository();
 
@@ -36,7 +36,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     try {
       setState(() => _isLoading = true);
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final userId = userProvider.userId ?? _supabase.auth.currentUser?.id;
+      final userId = userProvider.userId ?? _auth.currentUser?.uid;
 
       if (userId == null) {
         setState(() {
@@ -80,7 +80,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     try {
       setState(() => _isLoading = true);
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final userId = userProvider.userId ?? _supabase.auth.currentUser?.id;
+      final userId = userProvider.userId ?? _auth.currentUser?.uid;
 
       if (userId == null) {
         setState(() => _isLoading = false);

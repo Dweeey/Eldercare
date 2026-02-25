@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
@@ -7,6 +8,8 @@ import 'package:eldercareapp/features/alerts/presentation/alerts_page.dart';
 import 'package:eldercareapp/features/home/data/health_metrics_repository.dart';
 import 'package:eldercareapp/features/home/presentation/history_page.dart';
 import 'package:eldercareapp/features/home/presentation/location_page.dart';
+import 'package:eldercareapp/services/firestore_service.dart';
+import 'package:eldercareapp/features/auth/presentation/qr_scanner_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,16 +22,23 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   Map<String, dynamic>? _latestMetrics;
   List<Map<String, dynamic>> _weeklyMetrics = [];
+  SmartwatchData? _smartwatchData;
   bool _isLoading = true;
   bool _isGuestUser = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final HealthMetricsRepository _healthMetricsRepository =
       HealthMetricsRepository();
+  final FirestoreService _firestoreService = FirestoreService();
+  
+  // Stream subscriptions for real-time updates
+  StreamSubscription<String?>? _linkedPatientIdSubscription;
+  StreamSubscription<List<SmartwatchData>>? _smartwatchDataSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadHealthData();
+    _setupRealtimeUpdates();
   }
 
   Future<void> _loadHealthData() async {
@@ -40,17 +50,15 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
         _latestMetrics = null;
         _weeklyMetrics = [];
+        _smartwatchData = null;
       });
       return;
     }
 
     try {
-      final latestMetric = await _healthMetricsRepository.getLatestMetric(
-        userId,
-      );
-      final weeklyMetrics = await _healthMetricsRepository.getWeeklyMetrics(
-        userId,
-      );
+      // Load health metrics (one-time load)
+      final latestMetric = await _healthMetricsRepository.getLatestMetric(userId);
+      final weeklyMetrics = await _healthMetricsRepository.getWeeklyMetrics(userId);
 
       setState(() {
         _isGuestUser = false;
@@ -68,6 +76,50 @@ class _HomePageState extends State<HomePage> {
         );
       }
     }
+  }
+
+  /// Set up real-time listeners for smartwatch data
+  void _setupRealtimeUpdates() {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final userId = userProvider.userId;
+    if (userId == null) return;
+
+    // Listen for linked patient ID changes
+    _linkedPatientIdSubscription = _firestoreService
+        .streamLinkedPatientId(userId)
+        .listen((linkedPatientId) {
+      if (linkedPatientId != null) {
+        // Cancel old subscription if it exists
+        _smartwatchDataSubscription?.cancel();
+
+        // Subscribe to smartwatch data stream
+        _smartwatchDataSubscription = _firestoreService
+            .streamSmartwatchHistory(linkedPatientId, limit: 1)
+            .listen((smartwatchHistory) {
+          if (smartwatchHistory.isNotEmpty) {
+            setState(() {
+              _smartwatchData = smartwatchHistory.first;
+            });
+          }
+        }, onError: (error) {
+          print('Error listening to smartwatch data: $error');
+        });
+      } else {
+        // No linked patient, cancel subscription
+        _smartwatchDataSubscription?.cancel();
+        setState(() {
+          _smartwatchData = null;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // Cancel all stream subscriptions to prevent memory leaks
+    _linkedPatientIdSubscription?.cancel();
+    _smartwatchDataSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -430,6 +482,252 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 20),
 
+          // Smartwatch Data Section
+          if (_smartwatchData != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.watch,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Smartwatch Data',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Live',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.8,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      children: [
+                        _buildSmartwatchMetric(
+                          icon: Icons.favorite,
+                          label: 'Heart Rate',
+                          value: _smartwatchData!.heartRate,
+                          unit: 'bpm',
+                          color: Colors.red,
+                        ),
+                        _buildSmartwatchMetric(
+                          icon: Icons.bloodtype,
+                          label: 'Blood Pressure',
+                          value: _smartwatchData!.bloodPressure,
+                          unit: '',
+                          color: Colors.indigo,
+                        ),
+                        _buildSmartwatchMetric(
+                          icon: Icons.air,
+                          label: 'SpO2',
+                          value: _smartwatchData!.spo2,
+                          unit: '%',
+                          color: Colors.blue,
+                        ),
+                        _buildSmartwatchMetric(
+                          icon: Icons.info_outline,
+                          label: 'Status',
+                          value: _smartwatchData!.bpStatus,
+                          unit: '',
+                          color: Colors.orange,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _smartwatchData!.fallDetected
+                            ? Colors.red.shade100
+                            : Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _smartwatchData!.fallDetected
+                                ? Icons.warning
+                                : Icons.check_circle,
+                            color: _smartwatchData!.fallDetected
+                                ? Colors.red
+                                : Colors.green,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _smartwatchData!.fallDetected
+                                ? 'Fall Detected!'
+                                : 'No Fall Detected',
+                            style: TextStyle(
+                              color: _smartwatchData!.fallDetected
+                                  ? Colors.red
+                                  : Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.watch,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'No Smartwatch Linked',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Scan the QR code from your smartwatch to start tracking health data.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const QRCodeScannerScreen(),
+                            ),
+                          ).then((_) {
+                            // Reload data when returning from QR scanner
+                            _loadHealthData();
+                          });
+                        },
+                        icon: const Icon(Icons.qr_code_scanner),
+                        label: const Text('Scan Smartwatch QR'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 20),
+
+          // Link/Rescan Smartwatch Button (always visible)
+          if (_smartwatchData != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const QRCodeScannerScreen(),
+                      ),
+                    ).then((_) {
+                      // Reload data when returning from QR scanner
+                      _loadHealthData();
+                    });
+                  },
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Scan New Smartwatch'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.green,
+                    side: const BorderSide(color: Colors.green),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 20),
+
           Expanded(
             child: GridView.count(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -634,6 +932,73 @@ class _HomePageState extends State<HomePage> {
               show: true,
               color: Colors.blue.withValues(alpha: 0.1),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmartwatchMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (unit.isNotEmpty)
+                Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+            ],
           ),
         ],
       ),
