@@ -10,6 +10,7 @@ import 'package:eldercareapp/features/home/presentation/history_page.dart';
 import 'package:eldercareapp/features/home/presentation/location_page.dart';
 import 'package:eldercareapp/services/firestore_service.dart';
 import 'package:eldercareapp/features/auth/presentation/qr_scanner_screen.dart';
+import 'package:eldercareapp/features/calling/presentation/zegocloud_call_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -142,6 +143,22 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildDrawer(context, userProvider),
       bottomNavigationBar: _buildBottomNavBar(),
       body: pages[_selectedIndex],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ZegocloudCallScreen(
+                calleeId: '5yeapeXNTZcofATleG5ZHZ8siZt2',
+                calleeName: 'Caregiver',
+                isVideoCall: false,
+              ),
+            ),
+          );
+        },
+        backgroundColor: Colors.green,
+        icon: const Icon(Icons.call, color: Colors.white),
+        label: const Text('Call Caregiver', style: TextStyle(color: Colors.white)),
+      ),
     );
   }
 

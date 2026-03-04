@@ -5,6 +5,9 @@ import 'firebase_options.dart';
 import 'package:eldercareapp/app_routes.dart';
 import 'package:eldercareapp/core/providers/theme_provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
+import 'package:eldercareapp/core/providers/call_provider.dart';
+import 'package:eldercareapp/services/zegocloud_voip_service.dart';
+import 'package:eldercareapp/services/zegocloud_incoming_call_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +17,21 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Initialize Zegocloud VoIP
+    try {
+      await ZegocloudVoipService.init();
+      // Set navigator key so Zego's built-in invitation UI can navigate properly
+      ZegocloudVoipService.setupIncomingCallHandler(
+        navigatorKey: MyApp.navigatorKey,
+        onIncomingCall: (callerId, callerName, isVideo) {
+          // Zego's UI handles everything; this callback is optional for custom logic
+        },
+      );
+    } catch (e) {
+      print('Zegocloud initialization warning: $e');
+      // Don't fail startup if Zegocloud init fails
+    }
   } catch (e) {
     startupError = e.toString();
   }
@@ -25,6 +43,9 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key, this.startupError});
 
   final String? startupError;
+
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -40,10 +61,12 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => CallProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
+            navigatorKey: MyApp.navigatorKey,
             debugShowCheckedModeBanner: false,
             // LIGHT THEME
             theme: ThemeData(

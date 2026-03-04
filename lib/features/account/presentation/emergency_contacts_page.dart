@@ -370,7 +370,7 @@ class _AddContactDialogState extends State<AddContactDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedRelationship,
+                initialValue: _selectedRelationship,
                 decoration: InputDecoration(
                   labelText: 'Relationship',
                   prefixIcon: const Icon(Icons.people),

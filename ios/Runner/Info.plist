@@ -47,5 +47,10 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- VoIP Calling Permissions (Zegocloud) -->
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app needs access to your microphone to make voice calls and communicate with caregivers</string>
+		<key>NSCameraUsageDescription</key>
+		<string>This app needs access to your camera for video calls with healthcare providers</string>
 	</dict>
 </plist>

@@ -30,13 +30,32 @@ dependencies:
   firebase_auth: ^5.3.0
   cloud_firestore: ^5.4.0
   mobile_scanner: ^4.0.0
+  
+  # Zegocloud VoIP
+  # keep the versions originally intended but bump to 2.28.23 for compatibility
+  zego_uikit_prebuilt_call: ^4.22.3
+  zego_uikit: ^2.28.44
+  # versions selected to satisfy each other (prebuilt 4.2.0 requires uikit ^2.18.3)
+
+  # permission_handler must match the version required by zego_uikit 2.9.0
+  permission_handler: ^11.4.0
+  flutter_native_splash: ^2.4.0
+
+dependency_overrides:
+  permission_handler: ^11.4.0
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-  flutter_native_splash: ^2.4.0
+
+# flutter_native_splash is required at build time to configure the native splash
+# screen. It also needs to be a regular dependency so its Android code is
+# available when the app is compiled, otherwise release builds complain about
+# missing package net.jonhanson.flutter_native_splash.
+
 
 # ==============================
 # FLUTTER NATIVE SPLASH CONFIG
