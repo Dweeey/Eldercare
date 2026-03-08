@@ -189,7 +189,7 @@ class _ZegocloudCallScreenState extends State<ZegocloudCallScreen> {
         ),
 
         // Accept call button (for incoming calls)
-        if (callProvider.callState == CallState.ringing)
+        if (widget.incoming && callProvider.callState == CallState.ringing)
           Padding(
             padding: const EdgeInsets.only(left: 20),
             child: FloatingActionButton(

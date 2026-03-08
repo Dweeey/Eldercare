@@ -18,20 +18,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     
-    // Initialize Zegocloud VoIP
-    try {
-      await ZegocloudVoipService.init();
-      // Set navigator key so Zego's built-in invitation UI can navigate properly
-      ZegocloudVoipService.setupIncomingCallHandler(
-        navigatorKey: MyApp.navigatorKey,
-        onIncomingCall: (callerId, callerName, isVideo) {
-          // Zego's UI handles everything; this callback is optional for custom logic
-        },
-      );
-    } catch (e) {
-      print('Zegocloud initialization warning: $e');
-      // Don't fail startup if Zegocloud init fails
-    }
+    // Set navigator key once; actual Zego user login happens after Firebase auth.
+    ZegocloudVoipService.setupIncomingCallHandler(
+      navigatorKey: MyApp.navigatorKey,
+      onIncomingCall: (callerId, callerName, isVideo) {
+        // Zego's UI handles everything; this callback is optional for custom logic
+      },
+    );
   } catch (e) {
     startupError = e.toString();
   }

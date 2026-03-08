@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eldercareapp/services/audio_route_service.dart';
+import 'package:eldercareapp/services/zegocloud_voip_service.dart';
 
 enum CallState {
   idle,
@@ -31,9 +32,7 @@ class CallProvider extends ChangeNotifier {
   Duration get callDuration => _callDuration;
   String? get errorMessage => _errorMessage;
   bool get isCallActive =>
-      _callState == CallState.connected ||
-      _callState == CallState.ringing ||
-      _callState == CallState.outgoing;
+      _callState == CallState.connected;
 
   CallProvider() {
     _callTimer = Stopwatch();
@@ -53,11 +52,18 @@ class CallProvider extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
+      final invitationSent = await ZegocloudVoipService.startCall(
+        calleeId: calleeId,
+        calleeName: calleeName,
+        isVideoCall: isVideoCall,
+      );
+
+      if (!invitationSent) {
+        throw Exception('Failed to send call invitation to smartwatch');
+      }
+
       // Start timer for call duration
       _callTimer.start();
-
-      // Update to ringing after a brief delay
-      await Future.delayed(const Duration(milliseconds: 500));
       _callState = CallState.ringing;
       notifyListeners();
     } catch (e) {
@@ -89,8 +95,18 @@ class CallProvider extends ChangeNotifier {
   /// End the current call
   Future<void> endCall() async {
     try {
+      final previousState = _callState;
       _callState = CallState.disconnecting;
       notifyListeners();
+
+      if ((previousState == CallState.outgoing || previousState == CallState.ringing) &&
+          _currentCalleeId != null &&
+          _currentCalleeName != null) {
+        await ZegocloudVoipService.cancelCallInvitation(
+          calleeId: _currentCalleeId!,
+          calleeName: _currentCalleeName!,
+        );
+      }
 
       _callTimer.stop();
       await Future.delayed(const Duration(milliseconds: 500));

@@ -17,27 +17,35 @@ class ZegocloudVoipService {
   static const int appID = 1279737711; 
   static const String appSign = '50a1c85a028c5224b00ec060afda1e71159d4cfdc124e124c441a981d83cd289';
 
-  // Hardcoded Caregiver User ID (for testing)
-  // This ID perfectly matches what the smartwatch is trying to call
-  static const String caregiverUserId = '5yeapeXNTZcofATleG5ZHZ8siZt2';
-  static const String caregiverName = 'Caregiver';
+  static String? _initializedUserId;
 
   /// Initialize Zegocloud SDK
-  /// IMPORTANT: Call ZegocloudVoipService.init() in your main.dart or after login!
-  /// Also call setupIncomingCallHandler() after init to handle incoming calls
-  static Future<void> init() async {
+  /// IMPORTANT: Call this after login with the authenticated Firebase UID.
+  static Future<void> initForUser({
+    required String userId,
+    required String userName,
+  }) async {
     try {
+      if (_initializedUserId == userId) {
+        return;
+      }
+
+      if (_initializedUserId != null) {
+        ZegoUIKitPrebuiltCallInvitationService().uninit();
+      }
+
       // THIS is what brings the phone "Online" to ZegoCloud's servers
       // Without this, the smartwatch gets the 105004 (Offline) error
       ZegoUIKitPrebuiltCallInvitationService().init(
         appID: appID,
         appSign: appSign,
-        userID: caregiverUserId,
-        userName: caregiverName,
+        userID: userId,
+        userName: userName,
         plugins: [ZegoUIKitSignalingPlugin()],
       );
+      _initializedUserId = userId;
       
-      print('Zegocloud VoIP initialized successfully');
+      print('Zegocloud VoIP initialized for user: $userId');
     } catch (e) {
       print('Error initializing Zegocloud VoIP: $e');
       rethrow;
@@ -76,18 +84,48 @@ class ZegocloudVoipService {
   }
 
   /// Start a voice call (Placeholder for manual dialing from the phone)
-  static Future<void> startCall({
-    required String userId,
-    required String userName,
+  static Future<bool> startCall({
     required String calleeId,
     required String calleeName,
     bool isVideoCall = false,
+    String customData = '',
+    int timeoutSeconds = 60,
   }) async {
     try {
-      print('Starting call from $userName ($userId) to $calleeName ($calleeId)');
+      if (_initializedUserId == null) {
+        print('Cannot start call: Zego service is not initialized for a user');
+        return false;
+      }
+
+      final sent = await ZegoUIKitPrebuiltCallInvitationService().send(
+        invitees: [ZegoCallUser(calleeId, calleeName)],
+        isVideoCall: isVideoCall,
+        customData: customData,
+        timeoutSeconds: timeoutSeconds,
+      );
+
+      print(
+        'Call invitation ${sent ? 'sent' : 'failed'} to $calleeName ($calleeId)',
+      );
+      return sent;
     } catch (e) {
       print('Error starting call: $e');
       rethrow;
+    }
+  }
+
+  /// Cancel an outgoing invitation that has not connected yet.
+  static Future<bool> cancelCallInvitation({
+    required String calleeId,
+    required String calleeName,
+  }) async {
+    try {
+      return await ZegoUIKitPrebuiltCallInvitationService().cancel(
+        callees: [ZegoCallUser(calleeId, calleeName)],
+      );
+    } catch (e) {
+      print('Error canceling call invitation: $e');
+      return false;
     }
   }
 
@@ -123,6 +161,7 @@ class ZegocloudVoipService {
   static Future<void> dispose() async {
     try {
       ZegoUIKitPrebuiltCallInvitationService().uninit();
+      _initializedUserId = null;
       print('Zegocloud VoIP disposed');
     } catch (e) {
       print('Error disposing Zegocloud VoIP: $e');

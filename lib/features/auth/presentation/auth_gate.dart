@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/auth/presentation/login_page.dart';
 import 'package:eldercareapp/features/home/presentation/home_page.dart';
+import 'package:eldercareapp/services/zegocloud_voip_service.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -27,14 +30,18 @@ class AuthGate extends StatelessWidget {
         // Update UserProvider with user data
         if (user != null) {
           final userProvider = Provider.of<UserProvider>(context, listen: false);
-          userProvider.setUser(
-            user.uid,
-            user.displayName ?? user.email?.split('@').first ?? 'User',
-            user.email ?? '',
+          final userName = user.displayName ?? user.email?.split('@').first ?? 'User';
+          userProvider.setUser(user.uid, userName, user.email ?? '');
+          unawaited(
+            ZegocloudVoipService.initForUser(
+              userId: user.uid,
+              userName: userName,
+            ),
           );
         } else {
           final userProvider = Provider.of<UserProvider>(context, listen: false);
           userProvider.clearUser();
+          unawaited(ZegocloudVoipService.dispose());
         }
 
         // Navigate based on authentication state

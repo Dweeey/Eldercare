@@ -144,20 +144,69 @@ class _HomePageState extends State<HomePage> {
       bottomNavigationBar: _buildBottomNavBar(),
       body: pages[_selectedIndex],
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const ZegocloudCallScreen(
-                calleeId: '5yeapeXNTZcofATleG5ZHZ8siZt2',
-                calleeName: 'Caregiver',
-                isVideoCall: false,
-              ),
-            ),
-          );
+        onPressed: () async {
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          final userId = userProvider.userId;
+          
+          if (userId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('User not logged in')),
+            );
+            return;
+          }
+          
+          try {
+            // Get linked patient record ID.
+            final linkedPatientId = await _firestoreService.getLinkedPatientId(userId);
+            
+            if (linkedPatientId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No linked patient found')),
+              );
+              return;
+            }
+
+            // Resolve the actual target app user (watch/patient account) for VoIP.
+            final watchUserId = await _firestoreService.getPatientUserId(linkedPatientId);
+            final calleeId = watchUserId ?? linkedPatientId;
+            final watchUserDoc = watchUserId != null
+                ? await _firestoreService.getUser(watchUserId)
+                : null;
+            final calleeName = (watchUserDoc?['displayName'] as String?) ?? 'Patient';
+
+            if (calleeId == userId) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Smartwatch account is not linked correctly (callee is same as caller).',
+                  ),
+                ),
+              );
+              return;
+            }
+            
+            if (mounted) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ZegocloudCallScreen(
+                    calleeId: calleeId,
+                    calleeName: calleeName,
+                    isVideoCall: false,
+                  ),
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error: $e')),
+              );
+            }
+          }
         },
         backgroundColor: Colors.green,
         icon: const Icon(Icons.call, color: Colors.white),
-        label: const Text('Call Caregiver', style: TextStyle(color: Colors.white)),
+        label: const Text('Call Patient', style: TextStyle(color: Colors.white)),
       ),
     );
   }

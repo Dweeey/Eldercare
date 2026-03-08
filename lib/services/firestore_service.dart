@@ -232,4 +232,24 @@ class FirestoreService {
       rethrow;
     }
   }
+
+  /// Get patient's user ID by searching for a user with this linkedPatientId
+  /// This performs a reverse lookup to find the smartwatch owner's user ID
+  Future<String?> getPatientUserId(String patientId) async {
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('users')
+          .where('linkedPatientId', isEqualTo: patientId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.id;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting patient user ID: $e');
+      return null;
+    }
+  }
 }
