@@ -31,15 +31,21 @@ class _HomePageState extends State<HomePage> {
       HealthMetricsRepository();
   final FirestoreService _firestoreService = FirestoreService();
   
-  // Stream subscriptions for real-time updates
+  // Stream subscriptions & Timer
   StreamSubscription<String?>? _linkedPatientIdSubscription;
-  StreamSubscription<List<SmartwatchData>>? _smartwatchDataSubscription;
+  StreamSubscription<SmartwatchData?>? _smartwatchDataSubscription;
+  Timer? _statusTimer; // Timer for checking 5-minute offline status
 
   @override
   void initState() {
     super.initState();
     _loadHealthData();
     _setupRealtimeUpdates();
+
+    // Ticks every 1 minute to refresh the UI and check if data is older than 5 mins
+    _statusTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) setState(() {}); 
+    });
   }
 
   Future<void> _loadHealthData() async {
@@ -57,7 +63,6 @@ class _HomePageState extends State<HomePage> {
     }
 
     try {
-      // Load health metrics (one-time load)
       final latestMetric = await _healthMetricsRepository.getLatestMetric(userId);
       final weeklyMetrics = await _healthMetricsRepository.getWeeklyMetrics(userId);
 
@@ -85,28 +90,25 @@ class _HomePageState extends State<HomePage> {
     final userId = userProvider.userId;
     if (userId == null) return;
 
-    // Listen for linked patient ID changes
     _linkedPatientIdSubscription = _firestoreService
         .streamLinkedPatientId(userId)
         .listen((linkedPatientId) {
       if (linkedPatientId != null) {
-        // Cancel old subscription if it exists
         _smartwatchDataSubscription?.cancel();
 
-        // Subscribe to smartwatch data stream
+        // Listen to the live document!
         _smartwatchDataSubscription = _firestoreService
-            .streamSmartwatchHistory(linkedPatientId, limit: 1)
-            .listen((smartwatchHistory) {
-          if (smartwatchHistory.isNotEmpty) {
+            .streamSmartwatchData(linkedPatientId)
+            .listen((smartwatchData) {
+          if (smartwatchData != null) {
             setState(() {
-              _smartwatchData = smartwatchHistory.first;
+              _smartwatchData = smartwatchData;
             });
           }
         }, onError: (error) {
           print('Error listening to smartwatch data: $error');
         });
       } else {
-        // No linked patient, cancel subscription
         _smartwatchDataSubscription?.cancel();
         setState(() {
           _smartwatchData = null;
@@ -117,24 +119,47 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    // Cancel all stream subscriptions to prevent memory leaks
     _linkedPatientIdSubscription?.cancel();
     _smartwatchDataSubscription?.cancel();
+    _statusTimer?.cancel(); // Clean up the timer to prevent memory leaks!
     super.dispose();
   }
+
+  // --- THESIS LOGIC: 5 MINUTE TIMEOUT HELPERS ---
+
+  bool _isDataLive() {
+    if (_smartwatchData == null) return false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final diff = now - _smartwatchData!.timestamp;
+    // Returns true if the data is LESS than 5 minutes old
+    return diff < const Duration(minutes: 5).inMilliseconds;
+  }
+
+  String _getStatusText() {
+    if (_smartwatchData == null) return 'Waiting for data...';
+    
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final diff = now - _smartwatchData!.timestamp;
+    final minutes = Duration(milliseconds: diff).inMinutes;
+
+    if (minutes < 5) {
+      return 'Live Sync Active';
+    } else {
+      return 'Offline ($minutes mins ago)';
+    }
+  }
+
+  // ----------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
 
-    // ORDER MATTERS: these are the pages hooked to each bottom-nav icon.
-    // If you want to change which screen an icon opens, update this list
-    // AND the icons in _buildBottomNavBar() so they stay in sync.
     final pages = [
-      _buildHomePage(userProvider), // index 0 -> Home icon
-      const AlertsPage(),           // index 1 -> Alerts/messages icon
-      const HistoryPage(),          // index 2 -> History (calendar) icon
-      const AccountPage(),          // index 3 -> User/account icon
+      _buildHomePage(userProvider), 
+      const AlertsPage(),           
+      const HistoryPage(),          
+      const AccountPage(),          
     ];
 
     return Scaffold(
@@ -156,7 +181,6 @@ class _HomePageState extends State<HomePage> {
           }
           
           try {
-            // Get linked patient record ID.
             final linkedPatientId = await _firestoreService.getLinkedPatientId(userId);
             
             if (linkedPatientId == null) {
@@ -166,7 +190,6 @@ class _HomePageState extends State<HomePage> {
               return;
             }
 
-            // Resolve the actual target app user (watch/patient account) for VoIP.
             final watchUserId = await _firestoreService.getPatientUserId(linkedPatientId);
             final calleeId = watchUserId ?? linkedPatientId;
             final watchUserDoc = watchUserId != null
@@ -177,9 +200,7 @@ class _HomePageState extends State<HomePage> {
             if (calleeId == userId) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Smartwatch account is not linked correctly (callee is same as caller).',
-                  ),
+                  content: Text('Smartwatch account is not linked correctly (callee is same as caller).'),
                 ),
               );
               return;
@@ -555,9 +576,12 @@ class _HomePageState extends State<HomePage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  // Outline turns Red if offline, Green if live
+                  color: _isDataLive() ? Colors.green.shade50 : Colors.red.shade50,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(
+                    color: _isDataLive() ? Colors.green.shade200 : Colors.red.shade200,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -570,12 +594,12 @@ class _HomePageState extends State<HomePage> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade100,
+                                color: _isDataLive() ? Colors.green.shade100 : Colors.red.shade100,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.watch,
-                                color: Colors.green,
+                                color: _isDataLive() ? Colors.green : Colors.red,
                                 size: 20,
                               ),
                             ),
@@ -589,18 +613,19 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
+                        // THE LIVE / OFFLINE BADGE
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green,
+                            color: _isDataLive() ? Colors.green : Colors.red,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text(
-                            'Live',
-                            style: TextStyle(
+                          child: Text(
+                            _isDataLive() ? 'Live' : 'Offline',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -634,8 +659,8 @@ class _HomePageState extends State<HomePage> {
                         ),
                         _buildSmartwatchMetric(
                           icon: Icons.air,
-                          label: 'SpO2',
-                          value: _smartwatchData!.spo2,
+                          label: 'SpO2 (Live)',
+                          value: _smartwatchData!.spo2.replaceAll('%', ''),
                           unit: '%',
                           color: Colors.blue,
                         ),
@@ -657,7 +682,7 @@ class _HomePageState extends State<HomePage> {
                       decoration: BoxDecoration(
                         color: _smartwatchData!.fallDetected
                             ? Colors.red.shade100
-                            : Colors.green.shade100,
+                            : (_isDataLive() ? Colors.green.shade100 : Colors.grey.shade200),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -668,7 +693,7 @@ class _HomePageState extends State<HomePage> {
                                 : Icons.check_circle,
                             color: _smartwatchData!.fallDetected
                                 ? Colors.red
-                                : Colors.green,
+                                : (_isDataLive() ? Colors.green : Colors.grey),
                             size: 18,
                           ),
                           const SizedBox(width: 8),
@@ -679,7 +704,7 @@ class _HomePageState extends State<HomePage> {
                             style: TextStyle(
                               color: _smartwatchData!.fallDetected
                                   ? Colors.red
-                                  : Colors.green,
+                                  : (_isDataLive() ? Colors.green : Colors.grey),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -746,7 +771,6 @@ class _HomePageState extends State<HomePage> {
                               builder: (context) => const QRCodeScannerScreen(),
                             ),
                           ).then((_) {
-                            // Reload data when returning from QR scanner
                             _loadHealthData();
                           });
                         },
@@ -765,7 +789,7 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 20),
 
-          // Link/Rescan Smartwatch Button (always visible)
+          // Link/Rescan Smartwatch Button
           if (_smartwatchData != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -779,7 +803,6 @@ class _HomePageState extends State<HomePage> {
                         builder: (context) => const QRCodeScannerScreen(),
                       ),
                     ).then((_) {
-                      // Reload data when returning from QR scanner
                       _loadHealthData();
                     });
                   },
@@ -794,6 +817,7 @@ class _HomePageState extends State<HomePage> {
             ),
           const SizedBox(height: 20),
 
+          // BOTTOM METRIC CARDS WITH TIMEOUT LOGIC
           Expanded(
             child: GridView.count(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -807,35 +831,33 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.favorite,
                   iconColor: Colors.red,
                   title: 'Heartbeat',
-                  value: '${_latestMetrics?['heart_rate'] ?? 75}',
+                  value: _smartwatchData != null ? _smartwatchData!.heartRate : '--',
                   unit: 'bpm',
-                  subtitle: 'May 8, 2025',
+                  subtitle: _getStatusText(), // Shows if live or offline
                 ),
                 _buildMetricCard(
                   icon: Icons.bloodtype,
                   iconColor: Colors.indigo,
                   title: 'Blood Pressure',
-                  value: _latestMetrics != null
-                      ? '${_latestMetrics!['blood_pressure_systolic']}/${_latestMetrics!['blood_pressure_diastolic']}'
-                      : '120/80',
+                  value: _smartwatchData != null ? _smartwatchData!.bloodPressure : '--/--',
                   unit: '',
-                  subtitle: 'May 8, 2025',
+                  subtitle: _getStatusText(), // Shows if live or offline
                 ),
                 _buildMetricCard(
                   icon: Icons.water_drop,
                   iconColor: Colors.blue,
                   title: 'SpO2 Level',
-                  value: '${_latestMetrics?['spo2_level'] ?? 95}',
+                  value: _smartwatchData != null ? _smartwatchData!.spo2.replaceAll('%', '') : '--',
                   unit: '%',
-                  subtitle: 'May 8, 2025',
+                  subtitle: _getStatusText(), // Shows if live or offline
                 ),
                 _buildMetricCard(
                   icon: Icons.warning_amber,
                   iconColor: Colors.orange,
                   title: 'Fall Detected',
-                  value: 'NONE',
+                  value: _smartwatchData != null ? (_smartwatchData!.fallDetected ? 'YES' : 'NONE') : 'NONE',
                   unit: '',
-                  subtitle: '',
+                  subtitle: _getStatusText(), // Shows if live or offline
                 ),
               ],
             ),
@@ -948,7 +970,9 @@ class _HomePageState extends State<HomePage> {
               subtitle,
               style: TextStyle(
                 fontSize: 11,
-                color: Colors.grey.shade500,
+                // Red subtitle if it says offline!
+                color: subtitle.contains('Offline') ? Colors.red : Colors.grey.shade500,
+                fontWeight: subtitle.contains('Offline') ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ],
@@ -1056,7 +1080,7 @@ class _HomePageState extends State<HomePage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (unit.isNotEmpty)
+              if (unit.isNotEmpty && value != 'NO API' && value != '--')
                 Text(
                   unit,
                   style: TextStyle(
