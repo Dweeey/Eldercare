@@ -41,8 +41,33 @@ class ZegocloudVoipService {
         appSign: appSign,
         userID: userId,
         userName: userName,
+        
+        // 1. The Signaling Plugin (The engine that listens for Firebase)
         plugins: [ZegoUIKitSignalingPlugin()],
+        
+        // 2. NEW: The Offline Notification Config (The Alarm Clock)
+        requireConfig: (ZegoCallInvitationData data) {
+          final config = (data.invitees.length > 1)
+              ? ZegoCallType.videoCall == data.type
+                  ? ZegoUIKitPrebuiltCallConfig.groupVideoCall()
+                  : ZegoUIKitPrebuiltCallConfig.groupVoiceCall()
+              : ZegoCallType.videoCall == data.type
+                  ? ZegoUIKitPrebuiltCallConfig.oneOnOneVideoCall()
+                  : ZegoUIKitPrebuiltCallConfig.oneOnOneVoiceCall();
+
+          return config;
+        },
+        notificationConfig: ZegoCallInvitationNotificationConfig(
+          androidNotificationConfig: ZegoCallAndroidNotificationConfig(
+            channelID: "ZegoOfflineCall",
+            channelName: "ElderCare SOS Alerts",
+            sound: "zego_uikit_sound_call", // Triggers the loud ringing sound
+            showOnFullScreen: true, // Forces the screen to wake up and show the call
+            showOnLockedScreen: true, // Shows the call even if the phone is locked
+          ),
+        ),
       );
+      
       _initializedUserId = userId;
       
       print('Zegocloud VoIP initialized for user: $userId');
@@ -67,6 +92,10 @@ class ZegocloudVoipService {
     try {
       final micStatus = await Permission.microphone.request();
       final cameraStatus = await Permission.camera.request();
+
+      // For offline calls, we also need Notification and System Alert Window permissions
+      await Permission.notification.request();
+      await Permission.systemAlertWindow.request();
 
       return micStatus.isGranted && cameraStatus.isGranted;
     } catch (e) {

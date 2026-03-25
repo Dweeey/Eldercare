@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eldercareapp/core/providers/user_provider.dart';
 import 'package:eldercareapp/features/account/presentation/account_page.dart';
 import 'package:eldercareapp/features/alerts/presentation/alerts_page.dart';
@@ -27,24 +28,34 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   bool _isGuestUser = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final HealthMetricsRepository _healthMetricsRepository =
-      HealthMetricsRepository();
+  final HealthMetricsRepository _healthMetricsRepository = HealthMetricsRepository();
   final FirestoreService _firestoreService = FirestoreService();
   
   // Stream subscriptions & Timer
   StreamSubscription<String?>? _linkedPatientIdSubscription;
   StreamSubscription<SmartwatchData?>? _smartwatchDataSubscription;
-  Timer? _statusTimer; // Timer for checking 5-minute offline status
+  Timer? _statusTimer;
+
+  // --- SWIPEABLE CHART VARIABLES ---
+  final PageController _pageController = PageController();
+  int _currentChartIndex = 0;
+  List<FlSpot> _todayHrSpots = [];
+  List<FlSpot> _todayBpSpots = [];
+  Map<int, int> _todayBpDiastolic = {};
 
   @override
   void initState() {
     super.initState();
     _loadHealthData();
+    _fetchTodayChartData(); // Fetch the 4-hour charts
     _setupRealtimeUpdates();
 
     // Ticks every 1 minute to refresh the UI and check if data is older than 5 mins
     _statusTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      if (mounted) setState(() {}); 
+      if (mounted) {
+        setState(() {}); 
+        _fetchTodayChartData(); // Refresh chart averages every minute
+      }
     });
   }
 
@@ -52,13 +63,15 @@ class _HomePageState extends State<HomePage> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final userId = userProvider.userId;
     if (userId == null) {
-      setState(() {
-        _isGuestUser = true;
-        _isLoading = false;
-        _latestMetrics = null;
-        _weeklyMetrics = [];
-        _smartwatchData = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isGuestUser = true;
+          _isLoading = false;
+          _latestMetrics = null;
+          _weeklyMetrics = [];
+          _smartwatchData = null;
+        });
+      }
       return;
     }
 
@@ -66,21 +79,103 @@ class _HomePageState extends State<HomePage> {
       final latestMetric = await _healthMetricsRepository.getLatestMetric(userId);
       final weeklyMetrics = await _healthMetricsRepository.getWeeklyMetrics(userId);
 
-      setState(() {
-        _isGuestUser = false;
-        _latestMetrics = latestMetric;
-        _weeklyMetrics = weeklyMetrics;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
       if (mounted) {
+        setState(() {
+          _isGuestUser = false;
+          _latestMetrics = latestMetric;
+          _weeklyMetrics = weeklyMetrics;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading health data: $e')),
         );
       }
+    }
+  }
+
+  // --- 4-HOUR BUCKET DATA FETCHER ---
+  Future<void> _fetchTodayChartData() async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final userId = userProvider.userId;
+      if (userId == null) return;
+
+      final linkedPatientId = await _firestoreService.getLinkedPatientId(userId);
+      if (linkedPatientId == null) return;
+
+      DateTime now = DateTime.now();
+      DateTime startOfDay = DateTime(now.year, now.month, now.day);
+      int startOfDayTimestamp = startOfDay.millisecondsSinceEpoch;
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('patients')
+          .doc(linkedPatientId)
+          .collection('history')
+          .where('timestamp', isGreaterThanOrEqualTo: startOfDayTimestamp)
+          .get();
+
+      Map<int, List<double>> hrBuckets = {0: [], 1: [], 2: [], 3: [], 4: [], 5: []};
+      Map<int, List<double>> sysBuckets = {0: [], 1: [], 2: [], 3: [], 4: [], 5: []};
+      Map<int, List<double>> diaBuckets = {0: [], 1: [], 2: [], 3: [], 4: [], 5: []}; // 🚨 NEW
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        if (data['timestamp'] == null) continue;
+        
+        DateTime dt = DateTime.fromMillisecondsSinceEpoch(data['timestamp'] as int);
+        int bucketIndex = dt.hour ~/ 4; 
+
+        if (data['heartRate'] != null && data['heartRate'] != '--') {
+          double? hr = double.tryParse(data['heartRate'].toString());
+          if (hr != null && hr > 0) hrBuckets[bucketIndex]!.add(hr);
+        }
+
+        if (data['bloodPressure'] != null && data['bloodPressure'].toString().contains('/')) {
+          var bpParts = data['bloodPressure'].toString().split('/');
+          double? sys = double.tryParse(bpParts[0].trim());
+          double? dia = double.tryParse(bpParts[1].trim()); 
+          
+          if (sys != null) sysBuckets[bucketIndex]!.add(sys);
+          if (dia != null) diaBuckets[bucketIndex]!.add(dia); 
+        }
+      }
+
+      List<FlSpot> tempHrSpots = [];
+      List<FlSpot> tempBpSpots = [];
+      Map<int, int> tempDia = {};
+
+      for (int i = 0; i < 6; i++) {
+        if (hrBuckets[i]!.isNotEmpty) {
+          double avg = hrBuckets[i]!.reduce((a, b) => a + b) / hrBuckets[i]!.length;
+          tempHrSpots.add(FlSpot(i.toDouble(), avg.roundToDouble()));
+        }
+        if (sysBuckets[i]!.isNotEmpty) {
+          double avgSys = sysBuckets[i]!.reduce((a, b) => a + b) / sysBuckets[i]!.length;
+          tempBpSpots.add(FlSpot(i.toDouble(), avgSys.roundToDouble()));
+          
+          // Calculate the average Diastolic for the tooltip
+          if (diaBuckets[i]!.isNotEmpty) {
+            double avgDia = diaBuckets[i]!.reduce((a, b) => a + b) / diaBuckets[i]!.length;
+            tempDia[i] = avgDia.round();
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _todayHrSpots = tempHrSpots;
+          _todayBpSpots = tempBpSpots;
+          _todayBpDiastolic = tempDia;
+        });
+      }
+    } catch (e) {
+      print('Error fetching today charts: $e');
     }
   }
 
@@ -94,13 +189,14 @@ class _HomePageState extends State<HomePage> {
         .streamLinkedPatientId(userId)
         .listen((linkedPatientId) {
       if (linkedPatientId != null) {
+        _fetchTodayChartData(); // Fetch charts when link connects
         _smartwatchDataSubscription?.cancel();
 
         // Listen to the live document!
         _smartwatchDataSubscription = _firestoreService
             .streamSmartwatchData(linkedPatientId)
             .listen((smartwatchData) {
-          if (smartwatchData != null) {
+          if (mounted && smartwatchData != null) {
             setState(() {
               _smartwatchData = smartwatchData;
             });
@@ -110,9 +206,11 @@ class _HomePageState extends State<HomePage> {
         });
       } else {
         _smartwatchDataSubscription?.cancel();
-        setState(() {
-          _smartwatchData = null;
-        });
+        if (mounted) {
+          setState(() {
+            _smartwatchData = null;
+          });
+        }
       }
     });
   }
@@ -121,17 +219,16 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _linkedPatientIdSubscription?.cancel();
     _smartwatchDataSubscription?.cancel();
-    _statusTimer?.cancel(); // Clean up the timer to prevent memory leaks!
+    _statusTimer?.cancel();
+    _pageController.dispose();
     super.dispose();
   }
 
   // --- THESIS LOGIC: 5 MINUTE TIMEOUT HELPERS ---
-
   bool _isDataLive() {
     if (_smartwatchData == null) return false;
     final now = DateTime.now().millisecondsSinceEpoch;
     final diff = now - _smartwatchData!.timestamp;
-    // Returns true if the data is LESS than 5 minutes old
     return diff < const Duration(minutes: 5).inMilliseconds;
   }
 
@@ -148,7 +245,6 @@ class _HomePageState extends State<HomePage> {
       return 'Offline ($minutes mins ago)';
     }
   }
-
   // ----------------------------------------------
 
   @override
@@ -168,67 +264,74 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildDrawer(context, userProvider),
       bottomNavigationBar: _buildBottomNavBar(),
       body: pages[_selectedIndex],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final userProvider = Provider.of<UserProvider>(context, listen: false);
-          final userId = userProvider.userId;
-          
-          if (userId == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('User not logged in')),
-            );
-            return;
-          }
-          
-          try {
-            final linkedPatientId = await _firestoreService.getLinkedPatientId(userId);
-            
-            if (linkedPatientId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No linked patient found')),
-              );
-              return;
-            }
+      
+      //  UI FIX 1: Pushes the Call Button to the side (bottom-right)
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      
+      // Hidden on Alerts tab (index 1)
+      floatingActionButton: _selectedIndex != 1 
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final userProvider = Provider.of<UserProvider>(context, listen: false);
+                final userId = userProvider.userId;
+                
+                if (userId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('User not logged in')),
+                  );
+                  return;
+                }
+                
+                try {
+                  final linkedPatientId = await _firestoreService.getLinkedPatientId(userId);
+                  
+                  if (linkedPatientId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('No linked patient found')),
+                    );
+                    return;
+                  }
 
-            final watchUserId = await _firestoreService.getPatientUserId(linkedPatientId);
-            final calleeId = watchUserId ?? linkedPatientId;
-            final watchUserDoc = watchUserId != null
-                ? await _firestoreService.getUser(watchUserId)
-                : null;
-            final calleeName = (watchUserDoc?['displayName'] as String?) ?? 'Patient';
+                  final watchUserId = await _firestoreService.getPatientUserId(linkedPatientId);
+                  final calleeId = watchUserId ?? linkedPatientId;
+                  final watchUserDoc = watchUserId != null
+                      ? await _firestoreService.getUser(watchUserId)
+                      : null;
+                  final calleeName = (watchUserDoc?['displayName'] as String?) ?? 'Patient';
 
-            if (calleeId == userId) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Smartwatch account is not linked correctly (callee is same as caller).'),
-                ),
-              );
-              return;
-            }
-            
-            if (mounted) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ZegocloudCallScreen(
-                    calleeId: calleeId,
-                    calleeName: calleeName,
-                    isVideoCall: false,
-                  ),
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: $e')),
-              );
-            }
-          }
-        },
-        backgroundColor: Colors.green,
-        icon: const Icon(Icons.call, color: Colors.white),
-        label: const Text('Call Patient', style: TextStyle(color: Colors.white)),
-      ),
+                  if (calleeId == userId) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Smartwatch account is not linked correctly (callee is same as caller).'),
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  if (mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => ZegocloudCallScreen(
+                          calleeId: calleeId,
+                          calleeName: calleeName,
+                          isVideoCall: false,
+                        ),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                }
+              },
+              backgroundColor: Colors.green,
+              icon: const Icon(Icons.call, color: Colors.white),
+              label: const Text('Call Patient', style: TextStyle(color: Colors.white)),
+            )
+          : null, // Makes it disappear on Alerts page
     );
   }
 
@@ -507,6 +610,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
+          // --- SWIPEABLE 4-HOUR CHART CONTAINER ---
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.all(16),
@@ -520,19 +624,16 @@ class _HomePageState extends State<HomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Health Metrics',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
                     Text(
-                      '140',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
+                      _currentChartIndex == 0 ? 'Today\'s Heart Rate' : 'Today\'s Blood Pressure',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.circle, size: 8, color: _currentChartIndex == 0 ? Colors.blue : Colors.blue.withValues(alpha: 0.3)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.circle, size: 8, color: _currentChartIndex == 1 ? Colors.indigo : Colors.indigo.withValues(alpha: 0.3)),
+                      ],
                     ),
                   ],
                 ),
@@ -548,19 +649,29 @@ class _HomePageState extends State<HomePage> {
                                 style: TextStyle(color: Colors.grey.shade600),
                               ),
                             )
-                      : _buildHeartRateChart(),
+                      : PageView(
+                          controller: _pageController,
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentChartIndex = index;
+                            });
+                          },
+                          children: [
+                            _buildSwipeableChart(isHeartRate: true),
+                            _buildSwipeableChart(isHeartRate: false),
+                          ],
+                        ),
                 ),
                 const SizedBox(height: 8),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildDayLabel('Sun'),
-                    _buildDayLabel('Mon'),
-                    _buildDayLabel('Tue'),
-                    _buildDayLabel('We'),
-                    _buildDayLabel('Thu'),
-                    _buildDayLabel('Fri'),
-                    _buildDayLabel('Sat'),
+                    _buildDayLabel('12 AM'),
+                    _buildDayLabel('4 AM'),
+                    _buildDayLabel('8 AM'),
+                    _buildDayLabel('12 PM'),
+                    _buildDayLabel('4 PM'),
+                    _buildDayLabel('8 PM'),
                   ],
                 ),
               ],
@@ -576,7 +687,6 @@ class _HomePageState extends State<HomePage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  // Outline turns Red if offline, Green if live
                   color: _isDataLive() ? Colors.green.shade50 : Colors.red.shade50,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
@@ -613,7 +723,6 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        // THE LIVE / OFFLINE BADGE
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -810,57 +919,79 @@ class _HomePageState extends State<HomePage> {
                   label: const Text('Scan New Smartwatch'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
+                    
+                    //  UI FIX 2: Bolder and thicker border to make it "perfect"
+                    side: const BorderSide(color: Colors.green, width: 2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
             ),
           const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
 
-          // BOTTOM METRIC CARDS WITH TIMEOUT LOGIC
-          Expanded(
-            child: GridView.count(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              physics: const BouncingScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.0,
-              children: [
-                _buildMetricCard(
-                  icon: Icons.favorite,
-                  iconColor: Colors.red,
-                  title: 'Heartbeat',
-                  value: _smartwatchData != null ? _smartwatchData!.heartRate : '--',
-                  unit: 'bpm',
-                  subtitle: _getStatusText(), // Shows if live or offline
-                ),
-                _buildMetricCard(
-                  icon: Icons.bloodtype,
-                  iconColor: Colors.indigo,
-                  title: 'Blood Pressure',
-                  value: _smartwatchData != null ? _smartwatchData!.bloodPressure : '--/--',
-                  unit: '',
-                  subtitle: _getStatusText(), // Shows if live or offline
-                ),
-                _buildMetricCard(
-                  icon: Icons.water_drop,
-                  iconColor: Colors.blue,
-                  title: 'SpO2 Level',
-                  value: _smartwatchData != null ? _smartwatchData!.spo2.replaceAll('%', '') : '--',
-                  unit: '%',
-                  subtitle: _getStatusText(), // Shows if live or offline
-                ),
-                _buildMetricCard(
-                  icon: Icons.warning_amber,
-                  iconColor: Colors.orange,
-                  title: 'Fall Detected',
-                  value: _smartwatchData != null ? (_smartwatchData!.fallDetected ? 'YES' : 'NONE') : 'NONE',
-                  unit: '',
-                  subtitle: _getStatusText(), // Shows if live or offline
-                ),
-              ],
+ // --- SWIPEABLE CHART BUILDER ---
+  Widget _buildSwipeableChart({required bool isHeartRate}) {
+    List<FlSpot> spots = isHeartRate ? _todayHrSpots : _todayBpSpots;
+    Color chartColor = isHeartRate ? Colors.pink : Colors.indigo;
+
+    if (spots.isEmpty) {
+      return const Center(child: Text('Waiting for data today...', style: TextStyle(color: Colors.grey)));
+    }
+
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: 5, 
+        minY: 0, 
+        maxY: isHeartRate ? 160 : 200, 
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          touchSpotThreshold: 40,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (touchedSpot) => Colors.blueGrey.shade800, 
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                
+                // THE FIX: Stitch the Diastolic value back on!
+                String tooltipText = '${spot.y.toInt()}';
+                
+                if (!isHeartRate) {
+                  int bucketIndex = spot.x.toInt();
+                  int? dia = _todayBpDiastolic[bucketIndex]; // Look up the Diastolic from memory
+                  if (dia != null) {
+                    tooltipText = '${spot.y.toInt()}/$dia'; // Glue them together!
+                  }
+                }
+
+                return LineTooltipItem(
+                  tooltipText,
+                  const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                );
+              }).toList();
+            },
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: chartColor,
+            barWidth: 3,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                return FlDotCirclePainter(radius: 4, color: chartColor, strokeWidth: 2, strokeColor: Colors.white);
+              },
             ),
+            belowBarData: BarAreaData(show: true, color: chartColor.withValues(alpha: 0.1)),
           ),
         ],
       ),
@@ -873,157 +1004,7 @@ class _HomePageState extends State<HomePage> {
       style: TextStyle(
         fontSize: 11,
         color: Colors.grey.shade600,
-      ),
-    );
-  }
-
-  Widget _buildMetricCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String unit,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Details',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    unit,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 11,
-                // Red subtitle if it says offline!
-                color: subtitle.contains('Offline') ? Colors.red : Colors.grey.shade500,
-                fontWeight: subtitle.contains('Offline') ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeartRateChart() {
-    if (_weeklyMetrics.isEmpty) {
-      return const Center(
-        child: Text(
-          'No data available',
-          style: TextStyle(color: Colors.grey),
-        ),
-      );
-    }
-
-    final reversedMetrics = _weeklyMetrics.reversed.toList();
-
-    return LineChart(
-      LineChartData(
-        gridData: const FlGridData(show: false),
-        titlesData: const FlTitlesData(show: false),
-        borderData: FlBorderData(show: false),
-        lineBarsData: [
-          LineChartBarData(
-            spots: [
-              for (int i = 0; i < reversedMetrics.length; i++)
-                FlSpot(i.toDouble(), (reversedMetrics[i]['heart_rate'] as int).toDouble()),
-            ],
-            isCurved: true,
-            color: Colors.blue,
-            barWidth: 3,
-            dotData: FlDotData(
-              show: true,
-              getDotPainter: (spot, percent, barData, index) {
-                return FlDotCirclePainter(
-                  radius: 4,
-                  color: Colors.blue,
-                  strokeWidth: 2,
-                  strokeColor: Colors.white,
-                );
-              },
-            ),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.blue.withValues(alpha: 0.1),
-            ),
-          ),
-        ],
+        fontWeight: FontWeight.bold,
       ),
     );
   }

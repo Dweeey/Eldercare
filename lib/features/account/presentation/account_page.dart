@@ -88,41 +88,6 @@ class _AccountPageState extends State<AccountPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  _buildSettingsSection(
-                    title: 'Health & Safety',
-                    items: [
-                      _buildSettingsItem(
-                        icon: Icons.contact_emergency,
-                        title: 'Emergency Contacts',
-                        subtitle: 'Manage your emergency contacts',
-                        onTap: () {
-                          Navigator.of(context).pushNamed(
-                            AppRoutes.emergencyContacts,
-                          );
-                        },
-                      ),
-                      _buildSettingsItem(
-                        icon: Icons.medical_services,
-                        title: 'Medical History',
-                        subtitle: 'View and export your health records',
-                        onTap: () {
-                          Navigator.of(context).pushNamed(
-                            AppRoutes.medicalHistory,
-                          );
-                        },
-                      ),
-                      _buildSettingsItem(
-                        icon: Icons.local_hospital,
-                        title: 'Medications',
-                        subtitle: 'Track your medications',
-                        onTap: () {
-                          Navigator.of(context).pushNamed(
-                            AppRoutes.medications,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
 
                   const SizedBox(height: 16),
 

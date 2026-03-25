@@ -9,16 +9,29 @@ import 'package:eldercareapp/core/providers/call_provider.dart';
 import 'package:eldercareapp/services/zegocloud_voip_service.dart';
 import 'package:eldercareapp/services/zegocloud_incoming_call_handler.dart';
 
+// --- NEW IMPORTS FOR BACKGROUND ALERTS ---
+import 'package:eldercareapp/services/notification_service.dart';
+import 'package:eldercareapp/services/vital_monitor_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   String? startupError;
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     
-    // Set navigator key once; actual Zego user login happens after Firebase auth.
+    // 1. Initialize the Notification System (Asks caregiver for permission)
+    await NotificationService.initialize();
+
+    // 2. Start listening to the smartwatch's vitals & battery!
+    // Note: We use 'patient_001' here for your thesis demo. 
+    await VitalMonitorService.initializeBackgroundService();
+
+    // 3. Set navigator key once; actual Zego user login happens after Firebase auth.
     ZegocloudVoipService.setupIncomingCallHandler(
       navigatorKey: MyApp.navigatorKey,
       onIncomingCall: (callerId, callerName, isVideo) {

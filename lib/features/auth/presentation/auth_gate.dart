@@ -14,10 +14,10 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      // Listen to auth state changes
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Show loading indicator while waiting for auth state
+        
+        // 🚨 1. THIS IS THE ONLY FIX NEEDED FOR THE LOGOUT BUG
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -27,7 +27,7 @@ class AuthGate extends StatelessWidget {
         // Get current user from snapshot
         final user = snapshot.data;
 
-        // Update UserProvider with user data
+        // 2. YOUR ORIGINAL WORKING CODE (Loads the QR Data instantly)
         if (user != null) {
           final userProvider = Provider.of<UserProvider>(context, listen: false);
           final userName = user.displayName ?? user.email?.split('@').first ?? 'User';
@@ -46,10 +46,8 @@ class AuthGate extends StatelessWidget {
 
         // Navigate based on authentication state
         if (user != null) {
-          // User is authenticated -> go to Home page
           return const HomePage();
         } else {
-          // User is not authenticated -> go to Login page
           return const LoginScreen();
         }
       },

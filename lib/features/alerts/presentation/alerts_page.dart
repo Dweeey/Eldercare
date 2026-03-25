@@ -1,26 +1,50 @@
+import 'package:eldercareapp/services/zegocloud_voip_service.dart';
 import 'package:flutter/material.dart';
-import 'audio_call_page.dart';
-import 'message_page.dart';
-import 'alert_details_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
+// --- MODELS ---
 enum AlertSeverity { all, warning, critical }
 
 class AlertItem {
+  final String id;
   final String title;
   final String subtitle;
   final String details;
-  final String time;
+  final DateTime time;
   final AlertSeverity severity;
 
   const AlertItem({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.details,
     required this.time,
     required this.severity,
   });
+
+  // Factory to safely convert Firebase data into our UI Model
+  factory AlertItem.fromFirestore(Map<String, dynamic> data, String id) {
+    return AlertItem(
+      id: id,
+      title: data['title'] ?? 'Unknown Alert',
+      subtitle: data['subtitle'] ?? '',
+      details: data['details'] ?? '',
+      time: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      severity: data['severity'] == 'critical'
+          ? AlertSeverity.critical
+          : AlertSeverity.warning,
+    );
+  }
+
+  // UPDATED: Uses the intl package to show both the Date and Time
+  String get formattedDateTime {
+    // This will format it exactly like: "Mar 21, 2:15 AM"
+    return DateFormat('MMM d, h:mm a').format(time);
+  }
 }
 
+// --- UI PAGE ---
 class AlertsPage extends StatefulWidget {
   const AlertsPage({super.key});
 
@@ -31,92 +55,13 @@ class AlertsPage extends StatefulWidget {
 class _AlertsPageState extends State<AlertsPage> {
   int _selectedTab = 0; // 0 = All, 1 = Warning, 2 = Critical
 
-  final List<AlertItem> _alerts = const [
-    AlertItem(
-      title: 'Fall Detected',
-      subtitle: 'Living Room · Mang Juan',
-      details: 'No response yet. Please check immediately.',
-      time: '2:34 PM',
-      severity: AlertSeverity.critical,
-    ),
-    AlertItem(
-      title: 'Heart Rate Critical',
-      subtitle: '145 bpm · Above threshold',
-      details: 'Normal: 60–100 bpm · Current: 145 bpm (+45%).',
-      time: '2:00 PM',
-      severity: AlertSeverity.critical,
-    ),
-    AlertItem(
-      title: 'Blood Pressure Elevated',
-      subtitle: '145/95 mmHg · Increasing',
-      details: 'Normal: <130/80 mmHg · Trend: increasing.',
-      time: '2:34 PM',
-      severity: AlertSeverity.warning,
-    ),
-    AlertItem(
-      title: 'Low Oxygen Saturation',
-      subtitle: 'SpO₂ at 92% · Below 95%',
-      details: 'Action: Monitor closely, consider contacting a doctor.',
-      time: '2:00 PM',
-      severity: AlertSeverity.warning,
-    ),
-    AlertItem(
-      title: 'Daily Health Check Complete',
-      subtitle: 'All vitals within normal range',
-      details: 'Heart Rate: 72 bpm · BP: 118/76 mmHg · SpO₂: 98%.',
-      time: '1:00 AM',
-      severity: AlertSeverity.warning,
-    ),
-    AlertItem(
-      title: 'Device Connected',
-      subtitle: 'Smartwatch successfully reconnected',
-      details: 'Connection restored between watch and phone.',
-      time: '12:34 PM',
-      severity: AlertSeverity.warning,
-    ),
-    AlertItem(
-      title: 'Battery Fully Charged',
-      subtitle: 'Smartwatch battery at 100%',
-      details: 'Watch is ready for the day.',
-      time: '10:34 PM',
-      severity: AlertSeverity.warning,
-    ),
-    AlertItem(
-      title: 'Low Battery Warning',
-      subtitle: 'Battery at 15%',
-      details: 'Please remind Mang Juan to charge the device.',
-      time: '2:00 PM',
-      severity: AlertSeverity.warning,
-    ),
-  ];
-
-  List<AlertItem> get _filteredAlerts {
-    if (_selectedTab == 1) {
-      return _alerts.where((a) => a.severity == AlertSeverity.warning).toList();
-    }
-    if (_selectedTab == 2) {
-      return _alerts.where((a) => a.severity == AlertSeverity.critical).toList();
-    }
-    return _alerts;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: Colors.white,
-      // Floating button to open the Messages screen from Alerts.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const MessagePage()),
-          );
-        },
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.chat_bubble_outline),
-      ),
+      
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,7 +83,7 @@ class _AlertsPageState extends State<AlertsPage> {
                     icon: const Icon(Icons.search),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Search coming soon (UI only).')),
+                        const SnackBar(content: Text('Search coming soon.')),
                       );
                     },
                   ),
@@ -170,27 +115,68 @@ class _AlertsPageState extends State<AlertsPage> {
 
             const SizedBox(height: 4),
 
-            // Alerts list
+            // --- REAL-TIME FIREBASE STREAM BUILDER ---
             Expanded(
-              child: _filteredAlerts.isEmpty
-                  ? Center(
+              child: StreamBuilder<QuerySnapshot>(
+                // Listening to an "alerts" collection, ordered by newest first
+                stream: FirebaseFirestore.instance
+                    .collection('alerts')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
                       child: Text(
                         'No alerts',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade500,
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: _filteredAlerts.length,
-                      itemBuilder: (context, index) {
-                        final alert = _filteredAlerts[index];
-                        final isCritical = alert.severity == AlertSeverity.critical;
+                    );
+                  }
 
-                        return _buildAlertCard(context, alert, isCritical);
-                      },
-                    ),
+                  // 1. Convert Firebase docs into our AlertItem objects
+                  List<AlertItem> allAlerts = snapshot.data!.docs.map((doc) {
+                    return AlertItem.fromFirestore(
+                        doc.data() as Map<String, dynamic>, doc.id);
+                  }).toList();
+
+                  // 2. Filter based on the selected tab
+                  List<AlertItem> filteredAlerts = allAlerts.where((alert) {
+                    if (_selectedTab == 1) return alert.severity == AlertSeverity.warning;
+                    if (_selectedTab == 2) return alert.severity == AlertSeverity.critical;
+                    return true; // If _selectedTab is 0, show all
+                  }).toList();
+
+                  if (filteredAlerts.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No alerts in this category',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                    );
+                  }
+
+                  // 3. Build the UI List
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    itemCount: filteredAlerts.length,
+                    itemBuilder: (context, index) {
+                      final alert = filteredAlerts[index];
+                      final isCritical = alert.severity == AlertSeverity.critical;
+                      return _buildAlertCard(context, alert, isCritical);
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -257,7 +243,7 @@ class _AlertsPageState extends State<AlertsPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.1),
+                    color: accentColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: accentColor),
@@ -278,8 +264,9 @@ class _AlertsPageState extends State<AlertsPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // UPDATED: Now calls the newly formatted DateTime getter
                           Text(
-                            alert.time,
+                            alert.formattedDateTime,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: Colors.grey.shade500,
                             ),
@@ -312,9 +299,11 @@ class _AlertsPageState extends State<AlertsPage> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AudioCallPage()),
+                      // REAL ZEGOCLOUD CALL TRIGGER
+                      ZegocloudVoipService.startCall(
+                        calleeId: "patient_001", // The ID of the smartwatch
+                        calleeName: "Patient Watch",
+                        isVideoCall: false,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -324,34 +313,10 @@ class _AlertsPageState extends State<AlertsPage> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    child: const Text('Call Now'),
+                    child: const Text('Call Now', style: TextStyle(color: Colors.white)),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AlertDetailsPage(
-                            title: alert.title,
-                            subtitle: alert.subtitle,
-                            details: alert.details,
-                            isCritical: isCritical,
-                          ),
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    child: const Text('View Details'),
-                  ),
-                ),
               ],
             ),
           ],

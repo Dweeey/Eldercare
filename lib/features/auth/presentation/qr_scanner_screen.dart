@@ -5,7 +5,7 @@ import 'package:eldercareapp/services/firestore_service.dart';
 import 'package:eldercareapp/services/firebase_auth_service.dart';
 
 class QRCodeScannerScreen extends StatefulWidget {
-  const QRCodeScannerScreen({Key? key}) : super(key: key);
+  const QRCodeScannerScreen({super.key});
 
   @override
   State<QRCodeScannerScreen> createState() => _QRCodeScannerScreenState();
