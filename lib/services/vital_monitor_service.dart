@@ -79,7 +79,6 @@ void onStart(ServiceInstance service) async {
   // Cooldown Trackers 
   DateTime? lastHrAlert;
   DateTime? lastFallAlert;
-  DateTime? lastBpAlert;
   DateTime? lastBatteryAlert;
   DateTime? lastOffWristAlert;
 
@@ -88,6 +87,7 @@ void onStart(ServiceInstance service) async {
   const String patientId = 'patient_001';
   bool previousFallState = false;
   bool isCurrentlyOffWrist = false;
+  String? lastProcessedBpReading; // Normalized (e.g. "120/80") to prevent repeat alerts for the same reading.
 
   // =====================================================================
   // THE NEW BRAIN: Active Polling every 10 seconds instead of WebSockets
@@ -140,21 +140,26 @@ void onStart(ServiceInstance service) async {
         if (bpParts.length == 2) {
           int sys = int.tryParse(bpParts[0].trim()) ?? 0;
           int dia = int.tryParse(bpParts[1].trim()) ?? 0;
-          if (sys >= 120 || dia >= 80) {
-            
-            // 🚨 THE FIX: Hardcoded to wait exactly 1 minute between BP alerts!
-            if (lastBpAlert == null || now.difference(lastBpAlert!).inMinutes >= 1) {
+          final String normalizedBp = '$sys/$dia';
+
+          // Alert only once per new BP reading (prevents repeated alerts for the same reading).
+          final bool isNewReading = lastProcessedBpReading != normalizedBp;
+          if (isNewReading) {
+            lastProcessedBpReading = normalizedBp;
+
+            if (sys >= 120 || dia >= 80) {
               bool isCritical = (sys >= 140 || dia >= 90);
               String title = isCritical ? '‼️ Blood Pressure: High (Stage 2)' : '🚨 Blood Pressure: Elevated';
-              String body = isCritical ? 'Current: $sys/$dia mmHg. Seek medical attention.' : 'Current: $sys/$dia mmHg. Please monitor closely.';
-              
+              String body = isCritical ? 'Current: $normalizedBp mmHg. Seek medical attention.' : 'Current: $normalizedBp mmHg. Please monitor closely.';
+
               _showBackgroundNotification(5, title, body);
-              _saveAlertToDb(title, '$sys/$dia mmHg', 'Please monitor closely.', isCritical ? 'critical' : 'warning');
-              lastBpAlert = now; // Resets the timer
+              _saveAlertToDb(title, '$normalizedBp mmHg', 'Please monitor closely.', isCritical ? 'critical' : 'warning');
             }
-            
           }
         }
+      } else {
+        // If BP is cleared/reset (e.g. "--"), allow the next reading (even the same value) to alert again.
+        lastProcessedBpReading = null;
       }
 
       // --- BATTERY ---

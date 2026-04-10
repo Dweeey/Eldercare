@@ -372,7 +372,7 @@ class _AddMedicationDialogState extends State<AddMedicationDialog> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedFrequency,
+                initialValue: _selectedFrequency,
                 decoration: InputDecoration(
                   labelText: 'Frequency',
                   prefixIcon: const Icon(Icons.schedule),
